@@ -77,11 +77,35 @@ class ShouldSupportCompression(Suggestion):
 class MustUseValidAtom(Error):
     text = _('Atom entries and feeds MUST be valid.')
 
+class ShouldRejectUnknownContentTypes(Warning):
+    text = _('A server should reject content if not given a content-type.')
+
+class MustRejectNonWellFormedAtom(Warning):
+    text = _('A server MUST reject non-wellformed content.')
+
 class InternalErrorEncountered(Error):
     text = _('Internal error encountered. It could be non-welllformed XML.')
 
+class EntryCreationMustReturn201(Error):
+    text = _('When an entry is successfully created the server MUST return an HTTP status code of 201.')
+
 class EntryCreationMustReturnLocationHeader(Error):
-    text = _('When an entry is successfully created the server MUST return a Location: HTTP header.')
+    text = _('When an entry is successfully created the server MUST return a Link: HTTP header.')
+
+class EntryCreationMustBeReflectedInFeed(Error):
+    text = _('When an entry is successfully created it must be added to the associated feed.')
+
+class EntryDeletionMustReturn200(Error):
+    text = _('When an entry is successfully deleted the status code MUST be 200.')
+
+class EntryDeletionMustBeReflectedInFeed(Error):
+    text = _('When an entry is successfully deleted it must be removed from the associated feed.')
+
+class LocationHeaderMustMatchLinkRelEdit(Error):
+    text = _('The link/@rel="edit" URI must match the URI returned via the Link: HTTP header during creation.')
+
+class LinkRelEditResourceInvalid(Error):
+    text = _('The link/@rel="edit" URI must be dereferencable.')
 
 class Test:
     """Base class for all the tests. Adds basic
@@ -219,6 +243,119 @@ class EntryCollectionTests(Test):
                 self.report(ShouldSupportCacheValidators("No Last-Modified: header was sent with the response."))
         if not response.has_key('content-encoding'):
             self.report(ShouldSupportCompression("No Content-Encoding: header was sent with the response indicating that a compressed entity body was not returned."))
+
+    def testContentWithSrc(self):
+        """POST a good Atom Entry with a content/@src
+        attribute set and with the right mime-type.
+        Ensure that the entry is added to the collection.
+        """
+        toc = self.enumerate_collection()
+        startnum = len(toc)
+        # Add a new entry
+        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_SRC, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
+
+        if response.status != 201:
+            self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
+        if not response.has_key('location'):
+            self.report(EntryCreationMustReturnLocationHeader("Header is completely missing"))
+            return
+
+        toc = self.enumerate_collection()
+        # Make sure it was added to the collection
+        if startnum >= len(toc):
+            self.report(EntryCreationMustBeReflectedInFeed("Number of entries went from %d before to %d entries after the entry was created." % (startnum, len(toc))))
+
+        # The location header should match the link/@rel="edit"
+        edituri = absolutize(self.entry_coll_uri, response['location'])
+        if edituri not in toc:
+            self.report(LocationHeaderMustMatchLinkRelEdit("The Location: header value %s can't be found in %s" % (response['location'], str(toc))))
+
+        (response, content) = self.http.request(edituri, "GET", headers = {"Cache-Control": "max-age=0"})
+        if response.status != 200:
+            self.report(LinkRelEditResourceInvalid("Expected an HTTP status code of 200 but instead received %d" % response.status))
+        validate_atom(self, content, edituri)
+
+        # Cleanup
+        (response, content) = self.http.request(edituri, "DELETE")
+        if response.status != 200:
+            self.report(EntryDeletionMustReturn200("Expected an HTTP status code of 200 on sending a DELETE but instead received %d" % response.status))
+        toc = self.enumerate_collection()
+        if startnum != len(toc):
+            self.report(EntryDeletionMustBeReflectedInFeed("Number of entries went from %d before to %d entries after the entry was deleted." % (startnum, len(toc))))
+        if edituri in toc:
+            self.report(EntryDeletionMustBeReflectedInFeed("The URI for the entry just deleted <%s> must not appear in the feed after the entry is deleted." % edituri))
+
+    def testContentWithBase64Content(self):
+        """ POST a good Atom Entry with an entry 
+        whose atom:content is a base64 encoded png.
+        """
+        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_OTHER, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
+        if response.status != 201:
+            self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
+        edituri = absolutize(self.entry_coll_uri, response['location'])
+        (response, content) = self.http.request(edituri, "DELETE")
+        if response.status != 200:
+            self.report(EntryDeletionMustReturn200("Expected an HTTP status code of 200 on sending a DELETE but instead received %d" % response.status))
+
+    def testMixedTextConstructs(self):
+        """ POST a good Atom Entry with an entry 
+        whose Text Constructs contain a mix of types.
+        """
+        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=MIXED_TEXT_TYPES, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
+        if response.status != 201:
+            self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
+        edituri = absolutize(self.entry_coll_uri, response['location'])
+        (response, content) = self.http.request(edituri, "DELETE")
+        if response.status != 200:
+            self.report(EntryDeletionMustReturn200("Expected an HTTP status code of 200 on sending a DELETE but instead received %d" % response.status))
+
+    def testInvalidEntry(self):
+        """ POST an invalid Atom Entry 
+        """
+        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=INVALID_ENTRY, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
+        if response.status < 400:
+            self.report(MustRejectNonWellFormedAtom("Actually returned an HTTP status code %d" % response.status))
+
+    def testDoubleAddWithSameAtomId(self):
+        """POST two Atom entries with the same atom:id 
+        to the collection. The response for both MUST be
+        201 and two new entries must be created."""
+        toc = self.enumerate_collection()
+        startnum = len(toc)
+        # Add a new entry
+        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_SRC, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
+        if response.status != 201:
+            self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
+            return
+        toc = self.enumerate_collection()
+        # Make sure it was added to the collection
+        if startnum >= len(toc):
+            self.report(EntryCreationMustBeReflectedInFeed("Number of entries went from %d before to %d entries after the entry was created." % (startnum, len(toc))))
+            return
+        # The location header should match the link/@rel="edit"
+        edituri = absolutize(self.entry_coll_uri, response['location'])
+
+        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_SRC, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
+        if response.status != 201:
+            self.report(EntryCreationMustReturn201("When POSTing a second entry with the same atom:id of an entry we just POSTed the server returned an HTTP status code %d" % response.status))
+            return
+
+        toc = self.enumerate_collection()
+        # Make sure it was added to the collection
+        if startnum+1 >= len(toc):
+            self.report(EntryCreationMustBeReflectedInFeed("Number of entries went from %d before to %d entries after the entry was created." % (startnum+1, len(toc))))
+        edituri2 = absolutize(self.entry_coll_uri, response['location'])
+
+        if edituri == edituri2:
+            self.report(EntryCreationMustReturnLocationHeader("Non unique Location: header value returned in a 201 response. <%s>" % edituri))
+
+        # Cleanup
+        (response, content) = self.http.request(edituri, "DELETE")
+        if response.status != 200:
+            self.report(EntryDeletionMustReturn200("Expected an HTTP status code of 200 on sending a DELETE but instead received %d" % response.status))
+        (response, content) = self.http.request(edituri2, "DELETE")
+        if response.status != 200:
+            self.report(EntryDeletionMustReturn200("Expected an HTTP status code of 200 on sending a DELETE but instead received %d" % response.status))
 
 class TestIntrospection(Test):
     def __init__(self, uri, http):
