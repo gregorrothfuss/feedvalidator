@@ -19,10 +19,22 @@ import cElementTree
 import urlparse
 import cStringIO
 import sys
+import getopt
 
 import feedvalidator
 from feedvalidator import compatibility
 from gettext import gettext as _
+
+def usage(option=""):
+    print """Usage: appclienttest [OPTION] IntrospectionURI
+
+  -h, --help            Display this help message then exit.
+      --name            User name to use for authentication.
+      --password        Password to use for authentication. 
+"""
+    if option:
+        print """!! %s !!""" % option
+
 
 def validate_atom(testcase, content, baseuri):
     retval = True
@@ -123,8 +135,6 @@ class Test:
             except Exception, e:
                 self.report(InternalErrorEncountered(str(e)))
     
-h = httplib2.Http(".cache")
-
 
 CONTENT_WITH_SRC = """<?xml version="1.0" encoding="utf-8"?>
 <entry xmlns="http://www.w3.org/2005/Atom">
@@ -201,17 +211,17 @@ def absolutize(baseuri, uri):
 
 
 class EntryCollectionTests(Test):
-    def __init__(self, entry_coll_uri):
+    def __init__(self, entry_coll_uri, http):
         Test.__init__(self)
         self.entry_coll_uri = entry_coll_uri
-
+        self.http = http
 
     def enumerate_collection(self):
         relnext = [self.entry_coll_uri]
         retval = {} 
         while relnext:
             uri = absolutize(self.entry_coll_uri, relnext[0])
-            (response, content) = h.request(uri, "GET", headers = {"Cache-Control": "max-age=0"})
+            (response, content) = self.http.request(uri, "GET", headers = {"Cache-Control": "max-age=0"})
             if not validate_atom(self, content, uri):
                 return {}
             tree = cElementTree.fromstring(content)
@@ -222,34 +232,17 @@ class EntryCollectionTests(Test):
             relnext = [l.get('href', '') for l in tree.findall(ATOM_LINK) if l.get('rel', '') == 'next'] 
         return retval
 
-
     def testHttpConformance(self):
         """Do a simple GET on a collection
         feed and look for suggested HTTP
         practice."""
-        (response, content) = h.request(self.entry_coll_uri)
+        (response, content) = self.http.request(self.entry_coll_uri)
         if not response.has_key('etag'):
             self.report(ShouldSupportCacheValidators("No ETag: header was sent with the response."))
             if not response.has_key('last-modified'):
                 self.report(ShouldSupportCacheValidators("No Last-Modified: header was sent with the response."))
         if not response.has_key('content-encoding'):
             self.report(ShouldSupportCompression("No Content-Encoding: header was sent with the response indicating that a compressed entity body was not returned."))
-
-    def testMissingContentType(self):
-        """POST an entry with no Content-Type header.
-It MUST fail since entry collections 
-only accept Atom Entries.
-"""
-        toc = self.enumerate_collection()
-        startnum = len(toc)
-        (response, content) = h.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_SRC)
-        toc = self.enumerate_collection()
-        if response.status < 400:
-            self.report(ShouldRejectUnknownContentTypes("Expected failure but instead received a %d status code." % response.status))
-            return
-        # Make sure an entry was not added 
-        if startnum < len(toc):
-            self.report(ShouldRejectUnknownContentTypes("The size of the table of contents changed from %d to %d." % (startnum, len(toc))))
 
     def testContentWithSrc(self):
         """POST a good Atom Entry with a content/@src
@@ -259,7 +252,7 @@ only accept Atom Entries.
         toc = self.enumerate_collection()
         startnum = len(toc)
         # Add a new entry
-        (response, content) = h.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_SRC, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
+        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_SRC, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
 
         if response.status != 201:
             self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
@@ -277,13 +270,13 @@ only accept Atom Entries.
         if edituri not in toc:
             self.report(LocationHeaderMustMatchLinkRelEdit("The Location: header value %s can't be found in %s" % (response['location'], str(toc))))
 
-        (response, content) = h.request(edituri, "GET", headers = {"Cache-Control": "max-age=0"})
+        (response, content) = self.http.request(edituri, "GET", headers = {"Cache-Control": "max-age=0"})
         if response.status != 200:
             self.report(LinkRelEditResourceInvalid("Expected an HTTP status code of 200 but instead received %d" % response.status))
         validate_atom(self, content, edituri)
 
         # Cleanup
-        (response, content) = h.request(edituri, "DELETE")
+        (response, content) = self.http.request(edituri, "DELETE")
         if response.status != 200:
             self.report(EntryDeletionMustReturn200("Expected an HTTP status code of 200 on sending a DELETE but instead received %d" % response.status))
         toc = self.enumerate_collection()
@@ -296,11 +289,11 @@ only accept Atom Entries.
         """ POST a good Atom Entry with an entry 
         whose atom:content is a base64 encoded png.
         """
-        (response, content) = h.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_OTHER, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
+        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_OTHER, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
         if response.status != 201:
             self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
         edituri = absolutize(self.entry_coll_uri, response['location'])
-        (response, content) = h.request(edituri, "DELETE")
+        (response, content) = self.http.request(edituri, "DELETE")
         if response.status != 200:
             self.report(EntryDeletionMustReturn200("Expected an HTTP status code of 200 on sending a DELETE but instead received %d" % response.status))
 
@@ -308,21 +301,20 @@ only accept Atom Entries.
         """ POST a good Atom Entry with an entry 
         whose Text Constructs contain a mix of types.
         """
-        (response, content) = h.request(self.entry_coll_uri, "POST", body=MIXED_TEXT_TYPES, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
+        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=MIXED_TEXT_TYPES, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
         if response.status != 201:
             self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
         edituri = absolutize(self.entry_coll_uri, response['location'])
-        (response, content) = h.request(edituri, "DELETE")
+        (response, content) = self.http.request(edituri, "DELETE")
         if response.status != 200:
             self.report(EntryDeletionMustReturn200("Expected an HTTP status code of 200 on sending a DELETE but instead received %d" % response.status))
 
     def testInvalidEntry(self):
         """ POST an invalid Atom Entry 
         """
-        (response, content) = h.request(self.entry_coll_uri, "POST", body=INVALID_ENTRY, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
+        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=INVALID_ENTRY, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
         if response.status < 400:
             self.report(MustRejectNonWellFormedAtom("Actually returned an HTTP status code %d" % response.status))
-
 
     def testDoubleAddWithSameAtomId(self):
         """POST two Atom entries with the same atom:id 
@@ -331,7 +323,7 @@ only accept Atom Entries.
         toc = self.enumerate_collection()
         startnum = len(toc)
         # Add a new entry
-        (response, content) = h.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_SRC, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
+        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_SRC, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
         if response.status != 201:
             self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
             return
@@ -343,7 +335,7 @@ only accept Atom Entries.
         # The location header should match the link/@rel="edit"
         edituri = absolutize(self.entry_coll_uri, response['location'])
 
-        (response, content) = h.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_SRC, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
+        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_SRC, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
         if response.status != 201:
             self.report(EntryCreationMustReturn201("When POSTing a second entry with the same atom:id of an entry we just POSTed the server returned an HTTP status code %d" % response.status))
             return
@@ -358,16 +350,17 @@ only accept Atom Entries.
             self.report(EntryCreationMustReturnLocationHeader("Non unique Location: header value returned in a 201 response. <%s>" % edituri))
 
         # Cleanup
-        (response, content) = h.request(edituri, "DELETE")
+        (response, content) = self.http.request(edituri, "DELETE")
         if response.status != 200:
             self.report(EntryDeletionMustReturn200("Expected an HTTP status code of 200 on sending a DELETE but instead received %d" % response.status))
-        (response, content) = h.request(edituri2, "DELETE")
+        (response, content) = self.http.request(edituri2, "DELETE")
         if response.status != 200:
             self.report(EntryDeletionMustReturn200("Expected an HTTP status code of 200 on sending a DELETE but instead received %d" % response.status))
 
 class TestIntrospection(Test):
-    def __init__(self, uri):
+    def __init__(self, uri, http):
         Test.__init__(self)
+        self.http = http
         self.introspection_uri  = uri
 
     def testEachEntryCollection(self):
@@ -375,12 +368,13 @@ class TestIntrospection(Test):
 in an Introspection document and
 run the Entry collection tests
 against it."""
-        response, content = h.request(self.introspection_uri)
+        response, content = self.http.request(self.introspection_uri)
+        # Add a validation step for the introspection document itself.
         tree = cElementTree.fromstring(content)
         for coll in tree.findall(".//" + APP_COLL):
             coll_type = [t for t in coll.findall(APP_MEMBER_TYPE) if t.text == "entry"] 
             if coll_type:
-                test = EntryCollectionTests(coll.get('href'))
+                test = EntryCollectionTests(coll.get('href'), self.http)
                 test.run()
                 self.reports.extend(test.reports)
 
@@ -400,24 +394,51 @@ def print_report(reports, reportclass):
     else:
         print "  No problems found."
 
+
+def main():
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "h", ["help", "name=", "password="])
+    except getopt.GetoptError:
+        # print help information and exit:
+        usage()
+        sys.exit(2)
+    name = password = None
+    for o, a in opts:
+        if o == "--name":
+            name = a
+        if o == "--password":
+            password = a
+        if o in ["h", "--help"]:
+            usage()
+            sys.exit()
+
+    http = httplib2.Http(".cache")
+
+    if name:
+        print "%s: %s" % (name, password)
+        http.add_credentials(name, password)
+    if not args:
+        args = [INTROSPECTION_URI]
+    for target_uri in args:
+        print "Atom Client Tests"
+        print "-----------------"
+        print ""
+        print "Testing the service at <%s>" % target_uri
+        print "Running: ",
+        test = TestIntrospection(target_uri, http)
+        test.run()
+        reports = test.reports
+        print ""
+        print "== Errors =="
+        print_report(reports, Error)
+        print "== Warnings =="
+        print_report(reports, Warning)
+        print "== Suggestions =="
+        print_report(reports, Suggestion)
+        if not reports:
+            print "Success!"
+
+
 if __name__ == '__main__':
-    target_uri = (len(sys.argv) > 1) and sys.argv[1] or INTROSPECTION_URI
-    print "Atom Client Tests"
-    print "-----------------"
-    print ""
-    print "Testing the service at <%s>" % target_uri
-    print "Running: ",
-    test = TestIntrospection(target_uri)
-    test.run()
-    reports = test.reports
-    print ""
-    print "== Errors =="
-    print_report(reports, Error)
-    print "== Warnings =="
-    print_report(reports, Warning)
-    print "== Suggestions =="
-    print_report(reports, Suggestion)
-    if not reports:
-        print "Success!"
-
-
+    main()
