@@ -90,19 +90,19 @@ class EntryCreationMustReturn201(Error):
     text = _('When an entry is successfully created the server MUST return an HTTP status code of 201.')
 
 class EntryCreationMustReturnLocationHeader(Error):
-    text = _('When an entry is successfully created the server MUST return a Link: HTTP header.')
+    text = _('When an entry is successfully created the server MUST return a Location: HTTP header.')
 
 class EntryCreationMustBeReflectedInFeed(Error):
     text = _('When an entry is successfully created it must be added to the associated feed.')
 
-class EntryDeletionMustReturn200(Error):
-    text = _('When an entry is successfully deleted the status code MUST be 200.')
+class EntryDeletionFailed(Error):
+    text = _('The status returned does not reflect a successful deletion.')
 
 class EntryDeletionMustBeReflectedInFeed(Error):
     text = _('When an entry is successfully deleted it must be removed from the associated feed.')
 
 class LocationHeaderMustMatchLinkRelEdit(Error):
-    text = _('The link/@rel="edit" URI must match the URI returned via the Link: HTTP header during creation.')
+    text = _('The link/@rel="edit" URI must match the URI returned via the Location: HTTP header during creation.')
 
 class LinkRelEditResourceInvalid(Error):
     text = _('The link/@rel="edit" URI must be dereferencable.')
@@ -277,8 +277,8 @@ class EntryCollectionTests(Test):
 
         # Cleanup
         (response, content) = self.http.request(edituri, "DELETE")
-        if response.status != 200:
-            self.report(EntryDeletionMustReturn200("Expected an HTTP status code of 200 on sending a DELETE but instead received %d" % response.status))
+        if response.status >= 400:
+            self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
         toc = self.enumerate_collection()
         if startnum != len(toc):
             self.report(EntryDeletionMustBeReflectedInFeed("Number of entries went from %d before to %d entries after the entry was deleted." % (startnum, len(toc))))
@@ -294,8 +294,8 @@ class EntryCollectionTests(Test):
             self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
         edituri = absolutize(self.entry_coll_uri, response['location'])
         (response, content) = self.http.request(edituri, "DELETE")
-        if response.status != 200:
-            self.report(EntryDeletionMustReturn200("Expected an HTTP status code of 200 on sending a DELETE but instead received %d" % response.status))
+        if response.status >= 400:
+            self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
 
     def testMixedTextConstructs(self):
         """ POST a good Atom Entry with an entry 
@@ -306,8 +306,8 @@ class EntryCollectionTests(Test):
             self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
         edituri = absolutize(self.entry_coll_uri, response['location'])
         (response, content) = self.http.request(edituri, "DELETE")
-        if response.status != 200:
-            self.report(EntryDeletionMustReturn200("Expected an HTTP status code of 200 on sending a DELETE but instead received %d" % response.status))
+        if response.status >= 400:
+            self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
 
     def testInvalidEntry(self):
         """ POST an invalid Atom Entry 
@@ -351,11 +351,11 @@ class EntryCollectionTests(Test):
 
         # Cleanup
         (response, content) = self.http.request(edituri, "DELETE")
-        if response.status != 200:
-            self.report(EntryDeletionMustReturn200("Expected an HTTP status code of 200 on sending a DELETE but instead received %d" % response.status))
+        if response.status >= 400:
+            self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
         (response, content) = self.http.request(edituri2, "DELETE")
-        if response.status != 200:
-            self.report(EntryDeletionMustReturn200("Expected an HTTP status code of 200 on sending a DELETE but instead received %d" % response.status))
+        if response.status >= 400:
+            self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
 
 class TestIntrospection(Test):
     def __init__(self, uri, http):
