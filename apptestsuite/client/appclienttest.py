@@ -29,8 +29,9 @@ def usage(option=""):
     print """Usage: appclienttest [OPTION] IntrospectionURI
 
   -h, --help            Display this help message then exit.
-      --name            User name to use for authentication.
-      --password        Password to use for authentication. 
+      --name=<name>     User name to use for authentication.
+      --password=<pw>   Password to use for authentication. 
+      --debug=<n>       Print debugging information for n > 0.
 """
     if option:
         print """!! %s !!""" % option
@@ -398,7 +399,7 @@ def print_report(reports, reportclass):
 def main():
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "h", ["help", "name=", "password="])
+        opts, args = getopt.getopt(sys.argv[1:], "h", ["help", "name=", "password=", "debug="])
     except getopt.GetoptError:
         # print help information and exit:
         usage()
@@ -409,6 +410,9 @@ def main():
             name = a
         if o == "--password":
             password = a
+        if o == "--debug":
+            print "debug level"
+            httplib2.debuglevel = int(a)
         if o in ["h", "--help"]:
             usage()
             sys.exit()
