@@ -20,10 +20,13 @@ import urlparse
 import cStringIO
 import sys
 import getopt
+import time
 
 import feedvalidator
 from feedvalidator import compatibility
 from gettext import gettext as _
+
+PACES = {'PaperTrail': False}
 
 def usage(option=""):
     print """Usage: appclienttest [OPTION] IntrospectionURI
@@ -32,7 +35,9 @@ def usage(option=""):
       --name=<name>     User name to use for authentication.
       --password=<pw>   Password to use for authentication. 
       --debug=<n>       Print debugging information for n > 0.
-"""
+
+      --<PaceName>      Where PaceName is one of [%s]
+""" % ", ".join(PACES.keys())
     if option:
         print """!! %s !!""" % option
 
@@ -59,6 +64,8 @@ class Reportable:
     def __init__(self, extra = None):
         self.extra = extra
         self.context = ""
+        if getattr(self, 'pace'):
+            self.extra = self.extra + ("\n   [Pace%s]" % self.pace)
 
     def tostring(self):
         return self.context + ":" + self.text + ":" + self.extra 
@@ -76,37 +83,36 @@ class ShouldSupportCompression(Suggestion):
     text = _('GET should support the use of compression to speed of transfers.')
 
 class MustUseValidAtom(Error):
-    text = _('Atom entries and feeds MUST be valid.')
-
-class ShouldRejectUnknownContentTypes(Warning):
-    text = _('A server should reject content if not given a content-type.')
+    text = _('Atom entries and feeds MUST be valid. [RFC 4287]')
 
 class MustRejectNonWellFormedAtom(Warning):
-    text = _('A server MUST reject non-wellformed content.')
+    text = _('A server SHOULD reject non-wellformed content. [XML 1.0 Section 5.1 Validating and Non-Validating Processors]')
 
 class InternalErrorEncountered(Error):
-    text = _('Internal error encountered. It could be non-welllformed XML.')
+    text = _('Internal error encountered. This error can occur if the site returned non-welllformed XML.')
 
-class EntryCreationMustReturn201(Error):
-    text = _('When an entry is successfully created the server MUST return an HTTP status code of 201.')
+class EntryCreationMustReturn201(Warning):
+    text = _('When an entry is successfully created the server SHOULD return an HTTP status code of 201. [RFC 2616 Section 9.5 POST]')
 
 class EntryCreationMustReturnLocationHeader(Error):
-    text = _('When an entry is successfully created the server MUST return a Location: HTTP header.')
+    text = _('When an entry is successfully created the server MUST return a Location: HTTP header. [APP-08 Section 8.1 Creating Resource with POST]')
 
 class EntryCreationMustBeReflectedInFeed(Error):
-    text = _('When an entry is successfully created it must be added to the associated feed.')
+    text = _('When an entry is successfully created it must be added to the associated feed. [APP-08 Section 8.1 Creating Resources.]')
 
 class EntryDeletionFailed(Error):
     text = _('The status returned does not reflect a successful deletion.')
 
 class EntryDeletionMustBeReflectedInFeed(Error):
-    text = _('When an entry is successfully deleted it must be removed from the associated feed.')
+    text = _('When an entry is successfully deleted, the Member URI MUST be removed from the collection. ')
+    pace = 'PaperTrail'
 
 class LocationHeaderMustMatchLinkRelEdit(Error):
-    text = _('The link/@rel="edit" URI must match the URI returned via the Location: HTTP header during creation.')
+    text = _('The link/@rel="edit" URI must match the URI returned via the Location: HTTP header during creation.') 
+    pace = 'PaperTrail'
 
-class LinkRelEditResourceInvalid(Error):
-    text = _('The link/@rel="edit" URI must be dereferencable.')
+class GetFailedOnMemberResource(Error):
+    text = _('Could not dereference the Member URI.')
 
 class Test:
     """Base class for all the tests. Adds basic
@@ -121,7 +127,10 @@ class Test:
 
     def report(self, r):
         r.context = self.context
-        self.reports.append(r)
+        if r.pace and not PACES[r.pace]:
+            pass
+        else:
+            self.reports.append(r)
 
     def run(self):
         methods = [ method for method in dir(self) if callable(getattr(self, method)) and method.startswith("test")]
@@ -217,6 +226,9 @@ class EntryCollectionTests(Test):
         self.entry_coll_uri = entry_coll_uri
         self.http = http
 
+    def setUp(self):
+        time.sleep(1)
+
     def enumerate_collection(self):
         relnext = [self.entry_coll_uri]
         retval = {} 
@@ -273,7 +285,7 @@ class EntryCollectionTests(Test):
 
         (response, content) = self.http.request(edituri, "GET", headers = {"Cache-Control": "max-age=0"})
         if response.status != 200:
-            self.report(LinkRelEditResourceInvalid("Expected an HTTP status code of 200 but instead received %d" % response.status))
+            self.report(GetFailedOnMemberResource("Expected an HTTP status code of 200 but instead received %d" % response.status))
         validate_atom(self, content, edituri)
 
         # Cleanup
@@ -281,6 +293,7 @@ class EntryCollectionTests(Test):
         if response.status >= 400:
             self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
         toc = self.enumerate_collection()
+
         if startnum != len(toc):
             self.report(EntryDeletionMustBeReflectedInFeed("Number of entries went from %d before to %d entries after the entry was deleted." % (startnum, len(toc))))
         if edituri in toc:
@@ -310,7 +323,7 @@ class EntryCollectionTests(Test):
         if response.status >= 400:
             self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
 
-    def testInvalidEntry(self):
+    def testNonWellFormedEntry(self):
         """ POST an invalid Atom Entry 
         """
         (response, content) = self.http.request(self.entry_coll_uri, "POST", body=INVALID_ENTRY, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
@@ -336,6 +349,7 @@ class EntryCollectionTests(Test):
         # The location header should match the link/@rel="edit"
         edituri = absolutize(self.entry_coll_uri, response['location'])
 
+        time.sleep(2)
         (response, content) = self.http.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_SRC, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
         if response.status != 201:
             self.report(EntryCreationMustReturn201("When POSTing a second entry with the same atom:id of an entry we just POSTed the server returned an HTTP status code %d" % response.status))
@@ -381,10 +395,14 @@ against it."""
 
 def format(r):
     return """----------------------------------------
-     %s: %s
-     Context: %s
+%s:
+   %s
 
-     Details: %s
+Context: 
+   %s
+
+Details: 
+   %s
 
 """ % (r.__class__.__name__, r.text, r.context, r.extra)
 
@@ -398,14 +416,18 @@ def print_report(reports, reportclass):
 
 def main():
 
+    options = ["help", "name=", "password=", "debug="]
+    options.extend(PACES.keys())
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "h", ["help", "name=", "password=", "debug="])
+        opts, args = getopt.getopt(sys.argv[1:], "h", options )
     except getopt.GetoptError:
         # print help information and exit:
         usage()
         sys.exit(2)
     name = password = None
     for o, a in opts:
+        if o.split("--")[-1] in PACES:
+            PACES[o.split("--")[-1]] = True
         if o == "--name":
             name = a
         if o == "--password":
@@ -416,6 +438,7 @@ def main():
         if o in ["h", "--help"]:
             usage()
             sys.exit()
+            
 
     http = httplib2.Http(".cache")
 
@@ -424,11 +447,18 @@ def main():
         http.add_credentials(name, password)
     if not args:
         args = [INTROSPECTION_URI]
+    enforced_paces = [name for name in PACES.keys() if PACES[name]]
     for target_uri in args:
         print "Atom Client Tests"
         print "-----------------"
         print ""
         print "Testing the service at <%s>" % target_uri
+        print ""
+        if enforced_paces:
+            print "The following Paces are being enforced <%s>" % ", ".join(enforced_paces)
+        else:
+            print "No Paces are being enforced."
+        print ""
         print "Running: ",
         test = TestIntrospection(target_uri, http)
         test.run()
