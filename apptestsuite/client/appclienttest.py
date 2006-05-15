@@ -64,7 +64,7 @@ class Reportable:
     def __init__(self, extra = None):
         self.extra = extra
         self.context = ""
-        if getattr(self, 'pace'):
+        if hasattr(self, 'pace'):
             self.extra = self.extra + ("\n   [Pace%s]" % self.pace)
 
     def tostring(self):
@@ -127,9 +127,7 @@ class Test:
 
     def report(self, r):
         r.context = self.context
-        if r.pace and not PACES[r.pace]:
-            pass
-        else:
+        if hasattr(r, 'pace') and PACES[r.pace]:
             self.reports.append(r)
 
     def run(self):
