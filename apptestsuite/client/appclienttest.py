@@ -245,11 +245,11 @@ class EntryCollectionTests(Test):
             for e in tree.findall(ATOM_ENTRY):
                 reledit = [l.get('href', '') for l in e.findall(ATOM_LINK) if l.get('rel', '') == 'edit'] 
                 for t in reledit:
-                    retval[t] = e 
+                    retval[absolutize(self.entry_coll_uri, t)] = e 
             relnext = [l.get('href', '') for l in tree.findall(ATOM_LINK) if l.get('rel', '') == 'next'] 
         return retval
 
-    def notestHttpConformance(self):
+    def testHttpConformance(self):
         """Do a simple GET on a collection
         feed and look for suggested HTTP
         practice."""
@@ -261,7 +261,7 @@ class EntryCollectionTests(Test):
         if not response.has_key('content-encoding'):
             self.report(ShouldSupportCompression("No Content-Encoding: header was sent with the response indicating that a compressed entity body was not returned."))
 
-    def notestContentWithSrc(self):
+    def testContentWithSrc(self):
         """POST a good Atom Entry with a content/@src
         attribute set and with the right mime-type.
         Ensure that the entry is added to the collection.
@@ -303,7 +303,7 @@ class EntryCollectionTests(Test):
         if edituri in toc:
             self.report(EntryDeletionMustBeReflectedInFeed("The URI for the entry just deleted <%s> must not appear in the feed after the entry is deleted." % edituri))
 
-    def notestContentWithBase64Content(self):
+    def testContentWithBase64Content(self):
         """ POST a good Atom Entry with an entry 
         whose atom:content is a base64 encoded png.
         """
@@ -315,7 +315,7 @@ class EntryCollectionTests(Test):
         if response.status >= 400:
             self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
 
-    def notestMixedTextConstructs(self):
+    def testMixedTextConstructs(self):
         """ POST a good Atom Entry with an entry 
         whose Text Constructs contain a mix of types.
         """
