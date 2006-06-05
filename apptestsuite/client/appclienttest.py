@@ -6,6 +6,7 @@ __license__ = "MIT"
 ATOM = "http://www.w3.org/2005/Atom"
 ATOM_LINK = "{%s}link" % ATOM
 ATOM_ENTRY = "{%s}entry" % ATOM
+ATOM_TITLE= "{%s}title" % ATOM
 
 APP = "http://purl.org/atom/app#"
 APP_COLL = "{%s}collection" % APP
@@ -75,6 +76,10 @@ class Reportable:
 class Error(Reportable): pass 
 class Warning(Reportable): pass
 class Suggestion(Reportable): pass
+
+
+class ServerShouldHandleI18NContent(Suggestion):
+    text = _('Server has discarded or been unable to handle i18n content.')
 
 class ShouldSupportCacheValidators(Suggestion):
     text = _('GET should support the use of ETags and/or Last-Modifed cache validators.')
@@ -203,13 +208,12 @@ MIXED_TEXT_TYPES = """<?xml version="1.0" encoding="utf-8"?>
 """
 
 # A missing Author makes this entry invalid
-INVALID_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
+NON_WELL_FORMED_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
 <entry xmlns="http://www.w3.org/2005/Atom">
   <title>This is a title</title>
   <id>urn:uuid:1225c695-ffb8-4ebb-aaaa-80da354efa6a</id>
   <updated>2005-09-02T10:30:00Z</updated>
   <summary>Hi!</summary>
-</entry>
 """
 
 def absolutize(baseuri, uri):
@@ -257,7 +261,7 @@ class EntryCollectionTests(Test):
         if not response.has_key('content-encoding'):
             self.report(ShouldSupportCompression("No Content-Encoding: header was sent with the response indicating that a compressed entity body was not returned."))
 
-    def testContentWithSrc(self):
+    def notestContentWithSrc(self):
         """POST a good Atom Entry with a content/@src
         attribute set and with the right mime-type.
         Ensure that the entry is added to the collection.
@@ -323,14 +327,33 @@ class EntryCollectionTests(Test):
         if response.status >= 400:
             self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
 
-    def notestNonWellFormedEntry(self):
+    def testNonWellFormedEntry(self):
         """ POST an invalid Atom Entry 
         """
-        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=INVALID_ENTRY, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
+        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=NON_WELL_FORMED_ENTRY, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
         if response.status < 400:
             self.report(MustRejectNonWellFormedAtom("Actually returned an HTTP status code %d" % response.status))
 
-    def notestDoubleAddWithSameAtomId(self):
+    def testI18n(self):
+        """ POST a fully utf-8 Atom Entry 
+        """
+        i18n = file("i18n.atom", "r").read()
+        tree = cElementTree.fromstring(i18n)
+        title_sent = tree.findall(".//" + ATOM_TITLE)[0].text
+        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=i18n, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
+        if response.status >= 400:
+            self.report(ServerShouldHandleI18NContent("Actually returned an HTTP status code %d" % response.status))
+        if response.status != 201:
+            self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
+        location = response['location']
+        (response, content) = self.http.request(location, "GET")
+        tree = cElementTree.fromstring(content)
+        title_received = tree.findall(".//" + ATOM_TITLE)[0].text
+        if title_sent != title_received:
+            self.report(ServerShouldHandleI18NContent(u"%s != %s" % (title_sent, title_received)))
+        (response, content) = self.http.request(location, "DELETE")
+
+    def testDoubleAddWithSameAtomId(self):
         """POST two Atom entries with the same atom:id 
         to the collection. The response for both MUST be
         201 and two new entries must be created."""
