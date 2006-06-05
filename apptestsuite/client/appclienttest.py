@@ -108,6 +108,9 @@ class EntryCreationMustBeReflectedInFeed(Error):
 class EntryDeletionFailed(Error):
     text = _('The status returned does not reflect a successful deletion.')
 
+class EntryUpdateFailed(Error):
+    text = _('The status returned does not reflect a successful update.')
+
 class EntryDeletionMustBeReflectedInFeed(Error):
     text = _('When an entry is successfully deleted, the Member URI MUST be removed from the collection. ')
     pace = 'PaperTrail'
@@ -349,8 +352,20 @@ class EntryCollectionTests(Test):
         (response, content) = self.http.request(location, "GET")
         tree = cElementTree.fromstring(content)
         title_received = tree.findall(".//" + ATOM_TITLE)[0].text
+        tree.findall(".//" + ATOM_TITLE)[0].text = "Non Internationalized"
         if title_sent != title_received:
             self.report(ServerShouldHandleI18NContent(u"%s != %s" % (title_sent, title_received)))
+        (response, content) = self.http.request(location, "PUT", body=cElementTree.tostring(tree))
+        if response.status != 200:
+            self.report(EntryUpdateFailed("Actually returned an HTTP status code %d" % response.status))
+
+        (response, content) = self.http.request(location, "GET")
+        tree = cElementTree.fromstring(content)
+        title_received = tree.findall(".//" + ATOM_TITLE)[0].text
+        if title_received != "Non Internationalized":
+            self.report(EntryUpdateFailed("Title not updated. %s != %s" % (title_received, "Non Internationalized")))
+
+
         (response, content) = self.http.request(location, "DELETE")
 
     def testDoubleAddWithSameAtomId(self):
