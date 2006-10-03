@@ -10,7 +10,7 @@ ATOM_TITLE= "{%s}title" % ATOM
 
 APP = "http://purl.org/atom/app#"
 APP_COLL = "{%s}collection" % APP
-APP_MEMBER_TYPE = "{%s}member-type" % APP
+APP_MEMBER_TYPE = "{%s}accept" % APP
 
 # By default we'll check the bitworking collection 
 INTROSPECTION_URI = "http://bitworking.org/projects/pyapp/collection.cgi?introspection=1"
@@ -51,7 +51,7 @@ def validate_atom(testcase, content, baseuri):
     except feedvalidator.logging.ValidationFailure, vf:
         events = [vf.event]
 
-    filterFunc = getattr(compatibility, "AA")
+    filterFunc = getattr(compatibility, "A")
     events = filterFunc(events)
     if len(events):
         from feedvalidator.formatter.text_plain import Formatter
