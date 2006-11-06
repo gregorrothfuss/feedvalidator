@@ -281,7 +281,7 @@ class EntryCollectionTests(Test):
         i18n = file("i18n.atom", "r").read()
         tree = cElementTree.fromstring(i18n)
         title_sent = tree.findall(".//" + ATOM_TITLE)[0].text
-        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=i18n, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
+        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=i18n, headers={'Content-Type': 'application/atom+xml', 'Content-Length' : str(len(i18n)), 'Accept': '*/*'})
         if response.status >= 400:
             self.report(ServerShouldHandleI18NContent("Actually returned an HTTP status code %d" % response.status))
         if response.status != 201:
@@ -293,7 +293,8 @@ class EntryCollectionTests(Test):
         tree.findall(".//" + ATOM_TITLE)[0].text = "Non Internationalized"
         if title_sent != title_received:
             self.report(ServerShouldHandleI18NContent(u"%s != %s" % (title_sent, title_received)))
-        (response, content) = self.http.request(location, "PUT", body=cElementTree.tostring(tree))
+        ni18n = cElementTree.tostring(tree)
+        (response, content) = self.http.request(location, "PUT", body=ni18n, headers={'Content-Length' : str(len(ni18n)), 'Content-Type' : 'application/atom+xml'})
         if response.status != 200:
             self.report(EntryUpdateFailed("Actually returned an HTTP status code %d" % response.status))
 
