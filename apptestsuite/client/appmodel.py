@@ -103,8 +103,8 @@ class Entry(object):
         else:
             content = DEFAULT_ENTRY
         validate_atom(content, self.member_uri)
-        self.element = fromstring(content) 
-        d = apptools.parse_atom_entry(self.element)
+        self.element = fromstring(content)
+        d = apptools.parse_atom_entry(self.member_uri, content)
         self._values.update(d)
 
     def put(self):
@@ -176,7 +176,7 @@ class Collection:
             return (self.entry_info['entries'], self.entry_info['next'])
         elif resp.status < 300:
             validate_atom(content, self.href)
-            (self.entry_info['entries'], self.entry_info['next']) = apptools.parse_collection_feed(content)
+            (self.entry_info['entries'], self.entry_info['next']) = apptools.parse_collection_feed(self.href, content)
             retval.extend([Entry(self.h, **e) for e in self.entry_info['entries']])
             self.entry_info_cache.set(self.cachekey, cPickle.dumps(self.entry_info))
             return (retval,  self.entry_info['next'])
@@ -213,7 +213,7 @@ class Model:
             self.h.add_credentials(name, password)
             (resp, content) = self.h.request(service)
             if resp.status == 200:
-                for d in apptools.parse_service(content):
+                for d in apptools.parse_service(service, content):
                     coll.append(Collection(name, password, **d))    
         return coll     
 

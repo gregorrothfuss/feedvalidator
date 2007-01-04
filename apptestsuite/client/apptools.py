@@ -1,5 +1,8 @@
 from elementtree.ElementTree import fromstring, tostring, SubElement
 import re
+from urlparse import urljoin
+import feedparser
+from StringIO import StringIO
 
 ATOM = "{http://www.w3.org/2005/Atom}%s"
 APP = "{http://purl.org/atom/app#}%s"
@@ -17,7 +20,7 @@ def get_text(name, entry):
     l = entry.findall(ATOM % name)
     if l:
         value = l[0].text
-        texttype = l[0].get('type', '')
+        texttype = l[0].get('type', 'text')
         if texttype in ["text", "html"]:
             pass
         elif texttype == "xhtml":
@@ -46,11 +49,22 @@ def set_text(name, entry, values):
         div = fromstring((u"<div xmlns='http://www.w3.org/1999/xhtml'>%s</div>" % values[name]).encode('utf-8'))
         element.append(div)
 
-def parse_atom_entry(entry):
+def parse_atom_entry(uri, entry_src):
+    f = StringIO(entry_src)
+    f.url = uri
+    feed = feedparser.parse(f)
+    entry = feed.entries[0]
     res = {}
-    res.update(get_text('title', entry))
-    res.update(get_text('summary', entry))
-    res.update(get_text('content', entry))
+    res['title'] = entry.title
+    res['title__type'] = 'text'
+    if 'summary_detail' in entry:
+        res['summary'] = entry.summary_detail.value
+        res['summary__type'] = entry.summary_detail.type
+    else:
+        res['summary'] = ""
+        res['summary__type'] = "text"
+    res['content'] = entry.content[0].value
+    res['content__type'] = entry.content[0].type
     return res
 
 def unparse_atom_entry(entry, values):
@@ -58,37 +72,48 @@ def unparse_atom_entry(entry, values):
     set_text('summary', entry, values)
     set_text('content', entry, values)
 
-def parse_collection_feed(src):
+def parse_collection_feed(uri, src):
     # loop over the entries and pull out the title, link/@rel="edit", updated and published.
     entries = []
-    feed = fromstring(src)
-    for e in feed.findall(ATOM % "entry"):
+    f = StringIO(src)
+    f.url = uri
+    feed = feedparser.parse(f)
+    for e in feed.entries:
         entry = {}
-        edit_links = [l.get('href', '') for l in e.findall(ATOM % "link") if l.get('rel', '') == "edit"]
-        #edit_links = [l.get('href', '') for l in e.findall(ATOM % "link") if l.get('rel', '') == "self"]
+        edit_links = [l.href for l in e.links if l.rel == "edit"]
         entry['edit'] = edit_links and edit_links[0] or ''
-        entry.update(get_text('title', e))
-        entry.update(get_element('updated', e))
-        entry.update(get_element('published', e))
+        entry['title'] = e.title
+        entry['updated'] = e.updated
         entries.append(entry)
-    next_links = [l.get('href', '') for l in feed.findall(ATOM % "link") if l.get('rel', '') == "next"]
-    next = next_links and next_links[0] or ''
+        print entry
+    if 'links' in feed:
+        next_links = [l.href for l in feed.links if l.rel == "next"]
+    else:
+        next_links = []
+        next = next_links and next_links[0] or ''
+
     return (entries, next)
 
-def parse_service(src):
+def parse_service(uri, src):
     res = []
     service = fromstring(src)
     workspaces = service.findall(APP % "workspace")
     for w in workspaces:
-        wsname = w.get('title', '')
+        wsname = w.find(ATOM % "title").text
         collections = w.findall(APP % "collection")
         for c in collections:
             cp = {}
-            cp['title'] = c.get('title', '')
-            cp['href'] = c.get('href', '')
+            cp['title'] = wsname = c.find(ATOM % "title").text
+            cp['href'] = urljoin(uri, c.get('href', ''))
+            print "---------------"
+            print uri
+            print c.get('href', '')
+            print cp['href']
+            print
             cp['workspace'] = wsname
             accept = c.findall(APP % "accept")
             cp['accept'] = accept and accept[0].text or '' 
+            print cp
             res.append(cp)
     return res
 
