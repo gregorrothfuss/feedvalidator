@@ -39,7 +39,10 @@ DEFAULT_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
      <name>anonymous</name>
   </author>
   <updated>2006-08-04T15:52:00-05:00</updated>
-  <summary type="html"></summary>
+  <summary type="xhtml">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+    </div>
+  </summary>
   <content type="xhtml">
     <div xmlns="http://www.w3.org/1999/xhtml">
     </div>
@@ -187,6 +190,7 @@ class Collection:
 # names and passwords.
 # Store them as space separated values in a text file for now
 
+# TODO convert the service list to use ConfigParser
 class Model:
     def __init__(self):
         self.service_list = []
@@ -211,10 +215,13 @@ class Model:
         coll = []
         for (service, name, password) in self.service_list:
             self.h.add_credentials(name, password)
-            (resp, content) = self.h.request(service)
-            if resp.status == 200:
-                for d in apptools.parse_service(service, content):
-                    coll.append(Collection(name, password, **d))    
+            try:
+                (resp, content) = self.h.request(service)
+                if resp.status == 200:
+                    for d in apptools.parse_service(service, content):
+                        coll.append(Collection(name, password, **d))    
+            except:
+                pass
         return coll     
 
 

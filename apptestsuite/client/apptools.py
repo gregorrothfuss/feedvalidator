@@ -46,8 +46,28 @@ def set_text(name, entry, values):
         element.text = values[name]
     elif type == "xhtml":
         element.text = ""
-        div = fromstring((u"<div xmlns='http://www.w3.org/1999/xhtml'>%s</div>" % values[name]).encode('utf-8'))
-        element.append(div)
+        try:
+            # For now if we don't have valid XHTML then just push it up 
+            # as html. In the future we can use the 1812 normalization
+            # code to convert it into xhtml.
+            div = fromstring((u"<div xmlns='http://www.w3.org/1999/xhtml'>%s</div>" % values[name]).encode('utf-8'))
+            element.append(div)
+        except:
+            element.text = values[name]
+            element.set('type', 'html')
+
+
+mime_to_atom = {
+        "application/xhtml+xml": "xhtml",
+        "text/html": "html",
+        "text/plain": "text"
+        }
+
+def mime2atom(t):
+    if t in mime_to_atom:
+        return mime_to_atom[t]
+    else:
+        return t
 
 def parse_atom_entry(uri, entry_src):
     f = StringIO(entry_src)
@@ -59,12 +79,13 @@ def parse_atom_entry(uri, entry_src):
     res['title__type'] = 'text'
     if 'summary_detail' in entry:
         res['summary'] = entry.summary_detail.value
-        res['summary__type'] = entry.summary_detail.type
+        res['summary__type'] = mime2atom(entry.summary_detail.type)
     else:
         res['summary'] = ""
         res['summary__type'] = "text"
     res['content'] = entry.content[0].value
-    res['content__type'] = entry.content[0].type
+    res['content__type'] = mime2atom(entry.content[0].type)
+    print res
     return res
 
 def unparse_atom_entry(entry, values):
