@@ -2,6 +2,7 @@ from elementtree.ElementTree import fromstring, tostring, SubElement
 import re
 from urlparse import urljoin
 import feedparser
+import appmodel
 from StringIO import StringIO
 
 ATOM = "{http://www.w3.org/2005/Atom}%s"
@@ -115,16 +116,18 @@ def parse_collection_feed(uri, src):
 
     return (entries, next)
 
-def parse_service(uri, src):
-    res = []
+def parse_service(ws_list, uri, src, name, password):
+    print src
     service = fromstring(src)
     workspaces = service.findall(APP % "workspace")
     for w in workspaces:
+        print w.find(ATOM % "title")
         wsname = w.find(ATOM % "title").text
+        res = []
         collections = w.findall(APP % "collection")
         for c in collections:
             cp = {}
-            cp['title'] = wsname = c.find(ATOM % "title").text
+            cp['title'] = c.find(ATOM % "title").text
             cp['href'] = urljoin(uri, c.get('href', ''))
             print "---------------"
             print uri
@@ -134,9 +137,9 @@ def parse_service(uri, src):
             cp['workspace'] = wsname
             accept = c.findall(APP % "accept")
             cp['accept'] = accept and accept[0].text or '' 
-            print cp
-            res.append(cp)
-    return res
+            res.append(appmodel.Collection(name, password, **cp))
+        ws_list.append( (wsname, res ) )
+    return ws_list 
 
 def wrap(text, width):
     l = 0

@@ -33,7 +33,7 @@ httplib2.Http.request = instrumented_request
 ENTRY_ELEMENTS = ["title", "title__type", "summary", "summary__type", "content", "content__type"]
 DEFAULT_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
 <entry xmlns="http://www.w3.org/2005/Atom">
-  <title type="text"></title>
+  <title type="text">Title goes here.</title>
   <id>http://bitworking.org/foo/app/main/third</id>
   <author>
      <name>anonymous</name>
@@ -212,17 +212,18 @@ class Model:
         f.close()
     
     def all_collections(self):
-        coll = []
-        for (service, name, password) in self.service_list:
+        ws = []
+        for (service_uri, name, password) in self.service_list:
             self.h.add_credentials(name, password)
-            try:
-                (resp, content) = self.h.request(service)
-                if resp.status == 200:
-                    for d in apptools.parse_service(service, content):
-                        coll.append(Collection(name, password, **d))    
-            except:
-                pass
-        return coll     
+            coll = []
+            (resp, content) = self.h.request(service_uri)
+            if resp.status == 200:
+                #try:
+                apptools.parse_service(ws, service_uri, content, name, password)
+                #except:
+                #    ws.append(("Failed to Load", []))
+                #    pass
+        return ws 
 
 
 

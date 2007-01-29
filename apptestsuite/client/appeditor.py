@@ -70,8 +70,6 @@ class MyFrame1(wx.Frame):
         self.il = il
 
 
-
-
         # Hook up the validator
         appmodel.logger_cb = self.http_logger
         appmodel.error_reporting_cb = self.error_logger
@@ -88,9 +86,11 @@ class MyFrame1(wx.Frame):
         self.model = appmodel.Model() 
         self.collections_root = self.collections_tree.AddRoot("Collections")
         self.collections_tree.SetPyData(self.collections_root, None)
-        for coll in self.model.all_collections():
-            child = self.collections_tree.AppendItem(self.collections_root, coll.title)
-            self.collections_tree.SetPyData(child, coll)
+        for ws in self.model.all_collections():
+            ws_child = self.collections_tree.AppendItem(self.collections_root, ws[0])
+            for coll in ws[1]:
+                child = self.collections_tree.AppendItem(ws_child, coll.title)
+                self.collections_tree.SetPyData(child, coll)
         self.collections_tree.Expand(self.collections_root)
 
         # Current collection is a dict with 'href', 'accept', 'workspace' and 'title'
