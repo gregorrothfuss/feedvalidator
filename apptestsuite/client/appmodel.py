@@ -8,6 +8,12 @@ import feedvalidator
 from feedvalidator import compatibility
 import cStringIO
 from ErrorReporting import *
+from urlparse import urljoin
+from ConfigParser import SafeConfigParser
+
+
+ATOM = "{http://www.w3.org/2005/Atom}%s"
+APP = "{http://purl.org/atom/app#}%s"
 
 # Called as logger_cb(uri, resp, content, method, body, headers, redirections)
 logger_cb = None
@@ -61,12 +67,19 @@ def validate_atom(content, baseuri):
     except feedvalidator.logging.ValidationFailure, vf:
         events = [vf.event]
 
-    filterFunc = getattr(compatibility, "AA")
-    events = filterFunc(events)
-    if len(events):
+    filterFunc = getattr(compatibility, "A")
+    err_events = filterFunc(events)
+    if len(err_events):
         from feedvalidator.formatter.text_plain import Formatter
-        output = Formatter(events)
+        output = Formatter(err_events)
         report(MustUseValidAtom("\n".join(output)))
+
+    warn_events = [event for event in events if compatibility._should(event)]
+    if len(warn_events):
+        from feedvalidator.formatter.text_plain import Formatter
+        output = Formatter(warn_events)
+        report(AtomShouldViolation("\n".join(output)))
+
 
 class Entry(object):
     def __init__(self, h, edit, title="", title__type="text", updated="", published=""):
@@ -129,8 +142,10 @@ class Entry(object):
 class Collection:
     def __init__(self, name, password, href, title, workspace, accept):
         self.h = httplib2.Http(".cache")
+        self.h.follow_all_redirects = True
         self.entry_info_cache = httplib2.FileCache(".cache/collections/") # For keys use md5.new(defrag_uri).hexdigest()
-        self.h.add_credentials(name, password)
+        if name:
+            self.h.add_credentials(name, password)
         self.href = href 
         self.title = title 
         self.workspace = workspace 
@@ -149,22 +164,6 @@ class Collection:
                 self.entry_info = cPickle.load(cached_entry_info_raw)
             except:
                 pass
-        
-        # Does a collection save and restore itself or does it merely serialize and someone else saves/restores?
-
-        # Store in .cache but use a prefix 
-        
-        # Really this needs to keep a list of all the entries, (their id's and their
-        # 'updated' values). Sync up at startup by recursing through the collection
-        # documents until you hit the end, or a match.
-
-        # The file will just be a pickle with atom:id, atom:updated, atom:link@href[@rel="edit"], atom:title, and atom:title@type in RCO (Reverse Chronological Order)
-        # The data will be a list of dictionaries, sorted by atom:updated
-        
-        # So we need to look up this stored info based on self.href
-
-        # Need a way to detect deletions, unless there is a 'trash' collection.
-        
 
     def post(self, entry):
         (resp, content) = self.h.request(self.href, method="POST", body=entry.tostring(), headers={
@@ -188,7 +187,6 @@ class Collection:
 
 # Need to save and restore service URIs along with
 # names and passwords.
-# Store them as space separated values in a text file for now
 
 # TODO convert the service list to use ConfigParser
 class Model:
@@ -197,33 +195,58 @@ class Model:
         self.load_service_list()
         self.current_collection = None
         self.h = httplib2.Http(".cache")
+        self.h.follow_all_redirects = True
 
     def load_service_list(self):
+        config = SafeConfigParser()
+        config.read(['config.ini'])
+
         self.service_list = []
-        for line in file("service.dat", "r"):
-            (service, name, password) = line.split()
-            self.service_list.append((service, name, password))
+        for service in config.sections():
+            uri = config.get(service, 'uri')
+            if config.has_option(service, 'name'):
+                name = config.get(service, 'name')
+                password = config.get(service, 'password')
+            else:
+                name = password = None
+            self.service_list.append((uri, name, password))
 
     def save_service_list(self):
-        f = file("service.dat", "w")
-        f.write(
-                "\n".join([" ".join(service) for service in self.service_list])
-            )
-        f.close()
+        pass
     
-    def all_collections(self):
+    def _parse_service(self, ws_list, uri, src, name, password):
+        service = fromstring(src)
+        workspaces = service.findall(APP % "workspace")
+        for w in workspaces:
+            wstitle = w.find(ATOM % "title")
+            wsname = (wstitle != None) and wstitle.text or "No title"
+            res = []
+            collections = w.findall(APP % "collection")
+            for c in collections:
+                cp = {}
+                title = c.find(ATOM % "title")
+                cp['title'] = (title != None) and title.text or "No title"
+                cp['href'] = urljoin(uri, c.get('href', ''))
+                cp['workspace'] = wsname
+                accept = c.findall(APP % "accept")
+                cp['accept'] = accept and accept[0].text or '' 
+                res.append(Collection(name, password, **cp))
+            ws_list.append( (wsname, res ) )
+        return ws_list 
+    
+    def all_workspaces(self):
         ws = []
         for (service_uri, name, password) in self.service_list:
-            self.h.add_credentials(name, password)
+            if name:
+                self.h.add_credentials(name, password)
             coll = []
             (resp, content) = self.h.request(service_uri)
             if resp.status == 200:
                 #try:
-                apptools.parse_service(ws, service_uri, content, name, password)
+                self._parse_service(ws, service_uri, content, name, password)
                 #except:
                 #    ws.append(("Failed to Load", []))
                 #    pass
         return ws 
-
 
 

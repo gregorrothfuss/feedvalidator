@@ -86,7 +86,6 @@ def parse_atom_entry(uri, entry_src):
         res['summary__type'] = "text"
     res['content'] = entry.content[0].value
     res['content__type'] = mime2atom(entry.content[0].type)
-    print res
     return res
 
 def unparse_atom_entry(entry, values):
@@ -107,7 +106,6 @@ def parse_collection_feed(uri, src):
         entry['title'] = e.title
         entry['updated'] = e.updated
         entries.append(entry)
-        print entry
     if 'links' in feed:
         next_links = [l.href for l in feed.links if l.rel == "next"]
     else:
@@ -116,30 +114,6 @@ def parse_collection_feed(uri, src):
 
     return (entries, next)
 
-def parse_service(ws_list, uri, src, name, password):
-    print src
-    service = fromstring(src)
-    workspaces = service.findall(APP % "workspace")
-    for w in workspaces:
-        print w.find(ATOM % "title")
-        wsname = w.find(ATOM % "title").text
-        res = []
-        collections = w.findall(APP % "collection")
-        for c in collections:
-            cp = {}
-            cp['title'] = c.find(ATOM % "title").text
-            cp['href'] = urljoin(uri, c.get('href', ''))
-            print "---------------"
-            print uri
-            print c.get('href', '')
-            print cp['href']
-            print
-            cp['workspace'] = wsname
-            accept = c.findall(APP % "accept")
-            cp['accept'] = accept and accept[0].text or '' 
-            res.append(appmodel.Collection(name, password, **cp))
-        ws_list.append( (wsname, res ) )
-    return ws_list 
 
 def wrap(text, width):
     l = 0

@@ -35,6 +35,9 @@ class ShouldSupportCompression(Suggestion):
 class MustUseValidAtom(Error):
     text = _('Atom entries and feeds MUST be valid. [RFC 4287]')
 
+class AtomShouldViolation(Warning):
+    text = _('Violation of a SHOULD directive of [RFC 4287]')
+
 class MustRejectNonWellFormedAtom(Warning):
     text = _('A server SHOULD reject non-wellformed content. [XML 1.0 Section 5.1 Validating and Non-Validating Processors]')
 

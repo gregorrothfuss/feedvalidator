@@ -84,9 +84,9 @@ class MyFrame1(wx.Frame):
 
         # Populate the collections 
         self.model = appmodel.Model() 
-        self.collections_root = self.collections_tree.AddRoot("Collections")
+        self.collections_root = self.collections_tree.AddRoot("Workspaces")
         self.collections_tree.SetPyData(self.collections_root, None)
-        for ws in self.model.all_collections():
+        for ws in self.model.all_workspaces():
             ws_child = self.collections_tree.AppendItem(self.collections_root, ws[0])
             for coll in ws[1]:
                 child = self.collections_tree.AppendItem(ws_child, coll.title)
@@ -96,15 +96,20 @@ class MyFrame1(wx.Frame):
         # Current collection is a dict with 'href', 'accept', 'workspace' and 'title'
         self.current_collection = None
 
+        # Pull all the entry controls together so they can be enabled/disabled. 
+        self.entry_controls = [self.entry_title_text, self.title_type_combo, self.label_3, self.entry_summary_text, self.summary_type_combo, self.label_4, self.entry_content_text, self.content_type_combo, self.create_save, self.delete]
+        self._disable_entry_controls()
+ 
 
     def __set_properties(self):
         # begin wxGlade: MyFrame1.__set_properties
         self.SetTitle("APP Test Client")
         self.SetSize((1154, 809))
         self.label_1.SetFont(wx.Font(12, wx.DEFAULT, wx.NORMAL, wx.NORMAL, 0, ""))
+        self.collections_tree.SetMinSize((250, 545))
         self.entries_label.SetFont(wx.Font(12, wx.DEFAULT, wx.NORMAL, wx.NORMAL, 0, ""))
         self.edit_label.SetFont(wx.Font(12, wx.DEFAULT, wx.NORMAL, wx.NORMAL, 0, ""))
-        self.entries_listbox.SetMinSize((300, 541))
+        self.entries_listbox.SetMinSize((400, 541))
         self.entry_title_text.SetMinSize((438, 27))
         self.title_type_combo.SetSelection(0)
         self.entry_summary_text.SetMinSize((438, 208))
@@ -154,7 +159,7 @@ class MyFrame1(wx.Frame):
         grid_sizer_2.SetSizeHints(self.entries_pane)
         grid_sizer_2.AddGrowableRow(1)
         grid_sizer_2.AddGrowableCol(1)
-        self.tophalf.SplitVertically(self.collections_pane, self.entries_pane, 200)
+        self.tophalf.SplitVertically(self.collections_pane, self.entries_pane)
         sizer_4.Add(self.diagnostics_tree, 1, wx.ALL|wx.EXPAND|wx.ADJUST_MINSIZE, 5)
         sizer_1.Add(self.diagnostics_clear, 0, wx.ADJUST_MINSIZE, 0)
         sizer_1.Add(self.diagnostics_export, 0, wx.ADJUST_MINSIZE, 0)
@@ -174,24 +179,29 @@ class MyFrame1(wx.Frame):
         # end wxGlade
 
     def on_ok(self, event): # wxGlade: MyFrame1.<event_handler>
-        print "Event handler `on_ok' not implemented"
         event.Skip()
 
     def on_diag_clear(self, event): # wxGlade: MyFrame1.<event_handler>
         self.diagnostics_tree.DeleteChildren(self.diagnostics_root)
 
     def on_collection_select(self, event): # wxGlade: MyFrame1.<event_handler>
-        print "Event handler `on_collection_select' not implemented"
         event.Skip()
 
     def on_collections_add(self, event): # wxGlade: MyFrame1.<event_handler>
-        print "Event handler `on_collections_add' not implemented"
         event.Skip()
 
     def on_entries_dblclk(self, event): # wxGlade: MyFrame1.<event_handler>
-        print "Event handler `on_entries_dblclk' not implemented"
         event.Skip()
 
+
+    def _enable_entry_controls(self):
+        [ x.Enable(True) for x in self.entry_controls]
+            
+
+    def _disable_entry_controls(self):
+        [ x.Enable(False) for x in self.entry_controls]
+
+    
     def on_entries_select(self, event): # wxGlade: MyFrame1.<event_handler>
         sel = self.entries_listbox.GetSelection()
         if sel != wx.NOT_FOUND:
@@ -203,31 +213,34 @@ class MyFrame1(wx.Frame):
             self.summary_type_combo.SetStringSelection(entry["summary__type"])
             self.entry_content_text.SetValue(entry["content"])
             self.content_type_combo.SetStringSelection(entry["content__type"])
+            self._enable_entry_controls()
+            if not entry.member_uri:
+                self.create_save.SetLabel("Create")
+                self.delete.Disable()
+            else:
+                self.create_save.SetLabel("Save")
+        else:
+            self._disable_entry_controls()
+
 
     def on_entries_new(self, event): # wxGlade: MyFrame1.<event_handler>
-        print "Event handler `on_entries_new' not implemented"
         event.Skip()
 
     def on_entries_edit(self, event): # wxGlade: MyFrame1.<event_handler>
         sel = self.entries_listbox.GetSelection()
         if sel != wx.NOT_FOUND:
             entry = self.entries_listbox.GetClientData(sel)
-            print entry
 
     def on_entries_delete(self, event): # wxGlade: MyFrame1.<event_handler>
-        print "Event handler `on_entries_delete' not implemented"
         event.Skip()
 
     def on_diag_export(self, event): # wxGlade: MyFrame1.<event_handler>
-        print "Event handler `on_diag_export' not implemented"
         event.Skip()
 
     def on_diag_config(self, event): # wxGlade: MyFrame1.<event_handler>
-        print "Event handler `on_diag_config' not implemented"
         event.Skip()
 
     def on_coll_sel_changed(self, event): # wxGlade: MyFrame1.<event_handler>
-        print "Event handler `on_coll_sel_changed' not implemented"
         item = event.GetItem()
         if item:
             self.current_collection = self.collections_tree.GetItemPyData(item)
@@ -235,7 +248,6 @@ class MyFrame1(wx.Frame):
         self.update_entry_list(True)
 
     def on_coll_sel_changing(self, event): # wxGlade: MyFrame1.<event_handler>
-        print "Event handler `on_coll_sel_changing' not implemented"
         event.Skip()
 
     def on_create_save(self, event): # wxGlade: MyFrame1.<event_handler>
@@ -250,9 +262,9 @@ class MyFrame1(wx.Frame):
             entry["content__type"] = self.content_type_combo.GetValue()
             if not entry.member_uri:
                 self.current_collection.post(entry)
-                self.update_entry_list(True)
             else:
                 entry.put()
+            self.update_entry_list(True)
 
     def http_logger(self, uri, resp, content, method, body, headers, redirections):
         child = self.diagnostics_tree.AppendItem(self.diagnostics_root, method + ": Status: %d " % resp.status + ": " + uri )
@@ -312,12 +324,20 @@ class MyFrame1(wx.Frame):
             self.entries_listbox.Clear()
         # Loop over the feed and pull out the title, updated, published, and "edit" link
         # also keep track of the "next" link
+        self.entry_title_text.SetValue("")
+        self.title_type_combo.SetStringSelection("text")
+        self.entry_summary_text.SetValue("")
+        self.summary_type_combo.SetStringSelection("xhtml")
+        self.entry_content_text.SetValue("")
+        self.content_type_combo.SetStringSelection("xhtml")
+        self._disable_entry_controls()
 
         # Create and empty Entry() here 
-        (entries, next) = self.current_collection.entries()
-        for e in entries:
-            index = self.entries_listbox.Append(e['title'])       
-            self.entries_listbox.SetClientData(index, e)
+        if self.current_collection:
+            (entries, next) = self.current_collection.entries()
+            for e in entries:
+                index = self.entries_listbox.Append(e['title'])       
+                self.entries_listbox.SetClientData(index, e)
 
     def on_delete(self, event): # wxGlade: MyFrame1.<event_handler>
         sel = self.entries_listbox.GetSelection()
