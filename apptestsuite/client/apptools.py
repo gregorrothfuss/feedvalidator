@@ -1,4 +1,7 @@
-from elementtree.ElementTree import fromstring, tostring, SubElement
+try:
+    from xml.etree.ElementTree import fromstring, tostring
+except:
+    from elementtree.ElementTree import fromstring, tostring
 import re
 from urlparse import urljoin
 import feedparser

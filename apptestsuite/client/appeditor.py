@@ -5,7 +5,10 @@
 import wx
 import appmodel 
 import apptools
-from elementtree.ElementTree import fromstring, tostring
+try:
+    from xml.etree.ElementTree import fromstring, tostring
+except:
+    from elementtree.ElementTree import fromstring, tostring
 import ErrorReporting
 
 class MyFrame1(wx.Frame):

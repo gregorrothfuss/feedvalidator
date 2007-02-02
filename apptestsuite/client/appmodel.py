@@ -1,7 +1,10 @@
 #!/usr/bin/env python2.4
 import httplib2
 import apptools
-from elementtree.ElementTree import fromstring, tostring
+try:
+    from xml.etree.ElementTree import fromstring, tostring
+except:
+    from elementtree.ElementTree import fromstring, tostring
 import cPickle
 import md5
 import feedvalidator

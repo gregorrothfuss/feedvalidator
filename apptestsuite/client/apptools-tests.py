@@ -39,7 +39,10 @@ ENTRY1 = """<?xml version="1.0" encoding="utf-8"?>
 
 import apptools
 import unittest
-from elementtree.ElementTree import fromstring, tostring
+try:
+    from xml.etree.ElementTree import fromstring, tostring
+except:
+    from elementtree.ElementTree import fromstring, tostring
 class parseAtomTest(unittest.TestCase):
 
     def testSimple(self):
