@@ -128,7 +128,7 @@ def wrap(text, width):
         if l > width or nl:
             l = 0
             if not nl:
-                ret.append('\r\n')
+                ret.append('\n')
         else:
             ret.append(' ')
     return "".join(ret) 

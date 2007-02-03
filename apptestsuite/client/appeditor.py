@@ -281,10 +281,14 @@ class MyFrame1(wx.Frame):
         self.diagnostics_tree.SetItemImage(req_child, self.fldridx, wx.TreeItemIcon_Normal)
         if headers:
             headers_child = self.diagnostics_tree.AppendItem(req_child, "Headers") 
-            self.diagnostics_tree.AppendItem(headers_child, "\n".join(["%s: %s" % (k,v) for (k,v) in headers.iteritems()]))
+
+            for k,v in headers.iteritems():
+                self.diagnostics_tree.AppendItem(headers_child, "%s: %s" % (k,v))
         if body:
             body_child = self.diagnostics_tree.AppendItem(req_child, "Body") 
-            self.diagnostics_tree.AppendItem(body_child, pretty_content(body))
+
+            for line in pretty_content(content).split("\n"):
+                self.diagnostics_tree.AppendItem(body_child, line)
 
 
         resp_child = self.diagnostics_tree.AppendItem(child, "Response") 
@@ -293,10 +297,13 @@ class MyFrame1(wx.Frame):
 
         headers_child = self.diagnostics_tree.AppendItem(resp_child, "Headers") 
         self.diagnostics_tree.SetItemImage(headers_child, self.fileidx, wx.TreeItemIcon_Normal)
-        self.diagnostics_tree.AppendItem(headers_child, "\n".join(["%s: %s" % (k,v) for (k,v) in resp.iteritems()]))
+        #self.diagnostics_tree.AppendItem(headers_child, "\n".join(["%s: %s" % (k,v) for (k,v) in resp.iteritems()]))
+        for k,v in resp.iteritems():
+            self.diagnostics_tree.AppendItem(headers_child, "%s: %s" % (k,v) )
         if content:
             content_child = self.diagnostics_tree.AppendItem(resp_child, "Body") 
-            self.diagnostics_tree.AppendItem(content_child, pretty_content(content))
+            for line in pretty_content(content).split("\n"):
+                self.diagnostics_tree.AppendItem(content_child, line)
             self.diagnostics_tree.SetItemImage(content_child, self.fileidx, wx.TreeItemIcon_Normal)
         self.diagnostics_tree.Expand(self.diagnostics_root)
         self.diagnostics_tree.ScrollTo(child)
