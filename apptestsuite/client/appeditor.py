@@ -110,6 +110,7 @@ class MyFrame1(wx.Frame):
         self.SetSize((1154, 809))
         self.label_1.SetFont(wx.Font(12, wx.DEFAULT, wx.NORMAL, wx.NORMAL, 0, ""))
         self.collections_tree.SetMinSize((250, 545))
+        self.collections_add.Enable(False)
         self.entries_label.SetFont(wx.Font(12, wx.DEFAULT, wx.NORMAL, wx.NORMAL, 0, ""))
         self.edit_label.SetFont(wx.Font(12, wx.DEFAULT, wx.NORMAL, wx.NORMAL, 0, ""))
         self.entries_listbox.SetMinSize((400, 541))
@@ -119,6 +120,8 @@ class MyFrame1(wx.Frame):
         self.summary_type_combo.SetSelection(0)
         self.entry_content_text.SetMinSize((438, 156))
         self.content_type_combo.SetSelection(0)
+        self.diagnostics_export.Enable(False)
+        self.diagnostics_config.Enable(False)
         # end wxGlade
 
     def __do_layout(self):
