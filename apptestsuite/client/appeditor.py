@@ -111,6 +111,7 @@ class MyFrame1(wx.Frame):
         self.label_1.SetFont(wx.Font(12, wx.DEFAULT, wx.NORMAL, wx.NORMAL, 0, ""))
         self.collections_tree.SetMinSize((250, 545))
         self.collections_add.Enable(False)
+        self.collections_add.Hide()
         self.entries_label.SetFont(wx.Font(12, wx.DEFAULT, wx.NORMAL, wx.NORMAL, 0, ""))
         self.edit_label.SetFont(wx.Font(12, wx.DEFAULT, wx.NORMAL, wx.NORMAL, 0, ""))
         self.entries_listbox.SetMinSize((400, 541))
@@ -120,8 +121,8 @@ class MyFrame1(wx.Frame):
         self.summary_type_combo.SetSelection(0)
         self.entry_content_text.SetMinSize((438, 156))
         self.content_type_combo.SetSelection(0)
-        self.diagnostics_export.Enable(False)
         self.diagnostics_config.Enable(False)
+        self.diagnostics_config.Hide()
         # end wxGlade
 
     def __do_layout(self):
@@ -241,7 +242,22 @@ class MyFrame1(wx.Frame):
         event.Skip()
 
     def on_diag_export(self, event): # wxGlade: MyFrame1.<event_handler>
-        event.Skip()
+        # Evetually prompt for a filename, for now we'll just 
+        # recurse the tree and dump it to a named file.
+        f = file("diagnostics.txt", "w")
+        def tree_enumerator(tree, node, depth = 0):
+            (child, cookie) = tree.GetFirstChild(node)
+            while child:
+                yield ' ' * depth + tree.GetItemText(child) 
+                for l in tree_enumerator(tree, child, depth+1):
+                    yield l
+                (child, cookie) = tree.GetNextChild(node, cookie)
+
+        for line in tree_enumerator(self.diagnostics_tree, self.diagnostics_root):
+            f.write(line)
+            f.write("\n")
+        f.close()
+
 
     def on_diag_config(self, event): # wxGlade: MyFrame1.<event_handler>
         event.Skip()
@@ -328,7 +344,9 @@ class MyFrame1(wx.Frame):
         child = self.diagnostics_tree.AppendItem(self.diagnostics_root, severity + " : " + reportable.toshortstring())
         self.diagnostics_tree.SetItemImage(child, image, wx.TreeItemIcon_Normal)
 
-        detail = self.diagnostics_tree.AppendItem(child, reportable.tostring()) 
+        for line in reportable.tostring().split("\n"):
+            detail = self.diagnostics_tree.AppendItem(child, line) 
+
         self.diagnostics_tree.Expand(self.diagnostics_root)
         self.diagnostics_tree.ScrollTo(child)
 

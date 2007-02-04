@@ -1,7 +1,7 @@
 try:
-    from xml.etree.ElementTree import fromstring, tostring
+    from xml.etree.ElementTree import fromstring, tostring, SubElement
 except:
-    from elementtree.ElementTree import fromstring, tostring
+    from elementtree.ElementTree import fromstring, tostring, SubElement
 import re
 from urlparse import urljoin
 import feedparser
