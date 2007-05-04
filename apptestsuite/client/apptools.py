@@ -1,3 +1,5 @@
+import logging
+
 try:
     from xml.etree.ElementTree import fromstring, tostring, SubElement
 except:
@@ -38,6 +40,7 @@ def get_text(name, entry):
     return {name: value, (name + "__type"): texttype}
 
 def set_text(name, entry, values):
+    logging.warn(values[name + "__type"])
     elements = entry.findall(ATOM % name)
     if not elements:
         element = SubElement(entry, ATOM % name)
@@ -54,8 +57,11 @@ def set_text(name, entry, values):
             # For now if we don't have valid XHTML then just push it up 
             # as html. In the future we can use the 1812 normalization
             # code to convert it into xhtml.
+            logging.warn(tostring(entry))
             div = fromstring((u"<div xmlns='http://www.w3.org/1999/xhtml'>%s</div>" % values[name]).encode('utf-8'))
             element.append(div)
+            logging.warn(tostring(element))
+            logging.warn(tostring(entry))
         except:
             element.text = values[name]
             element.set('type', 'html')
@@ -104,7 +110,10 @@ def parse_collection_feed(uri, src):
     feed = feedparser.parse(f)
     for e in feed.entries:
         entry = {}
-        edit_links = [l.href for l in e.links if l.rel == "edit"]
+        try:
+            edit_links = [l.href for l in e.links if l.rel == "edit"]
+        except:
+            edit_links = []
         entry['edit'] = edit_links and edit_links[0] or ''
         entry['title'] = e.title
         entry['updated'] = e.updated

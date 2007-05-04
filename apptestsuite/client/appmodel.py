@@ -1,6 +1,7 @@
 #!/usr/bin/env python2.4
 import httplib2
 import apptools
+import logging
 try:
     from xml.etree.ElementTree import fromstring, tostring
 except:
@@ -14,6 +15,7 @@ from ErrorReporting import *
 from urlparse import urljoin
 from ConfigParser import SafeConfigParser
 
+httplib2.debuglevel=100
 
 ATOM = "{http://www.w3.org/2005/Atom}%s"
 APP = "{http://purl.org/atom/app#}%s"
@@ -139,6 +141,8 @@ class Entry(object):
 
     def tostring(self):
         apptools.unparse_atom_entry(self.element, self._values)
+
+        logging.error(tostring(self.element))
         return tostring(self.element)
 
 
@@ -192,6 +196,9 @@ class Collection:
 # names and passwords.
 
 # TODO convert the service list to use ConfigParser
+# TODO rename Model to Service
+# Convert Service to use not use ConfigParser, instead have it take 
+# a uri, name, and password. One Service object per Service document.
 class Model:
     def __init__(self):
         self.service_list = []

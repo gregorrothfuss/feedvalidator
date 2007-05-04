@@ -408,12 +408,12 @@ def indent(elem, level=0):
         elem.tail = i
 
 def pretty_content(content):
-    try:
-        element = fromstring(content)
-        indent(element)
-        content = tostring(element)
-    except:
-        content = apptools.wrap(content, 80)
+    #try:
+    #    element = fromstring(content)
+    #    indent(element)
+    #content = tostring(element)
+    #except:
+    #    content = apptools.wrap(content, 80)
     return content
 
 
