@@ -26,13 +26,17 @@ def get_text(name, entry):
     l = entry.findall(ATOM % name)
     if l:
         value = l[0].text
-        texttype = l[0].get('type', 'text')
+        texttype = mime2atom(l[0].get('type', 'text'))
         if texttype in ["text", "html"]:
             pass
         elif texttype == "xhtml":
             div = l[0].findall("{http://www.w3.org/1999/xhtml}div")[0]
-            if div:
-                value = "".join( [tostring(c) for c in div.getchildren()] )
+            if div != None:
+                if div.text:
+                    value = div.text
+                if value == None:
+                    value = ""
+                value = value + "".join( [tostring(c) for c in div.getchildren()] )
         else:
             value = ""
     if value == None:
@@ -40,7 +44,7 @@ def get_text(name, entry):
     return {name: value, (name + "__type"): texttype}
 
 def set_text(name, entry, values):
-    logging.warn(values[name + "__type"])
+    #logging.warn(values[name + "__type"])
     elements = entry.findall(ATOM % name)
     if not elements:
         element = SubElement(entry, ATOM % name)
@@ -57,11 +61,11 @@ def set_text(name, entry, values):
             # For now if we don't have valid XHTML then just push it up 
             # as html. In the future we can use the 1812 normalization
             # code to convert it into xhtml.
-            logging.warn(tostring(entry))
+            #logging.warn(tostring(entry))
             div = fromstring((u"<div xmlns='http://www.w3.org/1999/xhtml'>%s</div>" % values[name]).encode('utf-8'))
             element.append(div)
-            logging.warn(tostring(element))
-            logging.warn(tostring(entry))
+            #logging.warn(tostring(element))
+            #logging.warn(tostring(entry))
         except:
             element.text = values[name]
             element.set('type', 'html')
@@ -79,22 +83,11 @@ def mime2atom(t):
     else:
         return t
 
-def parse_atom_entry(uri, entry_src):
-    f = StringIO(entry_src)
-    f.url = uri
-    feed = feedparser.parse(f)
-    entry = feed.entries[0]
+def parse_atom_entry(uri, entry):
     res = {}
-    res['title'] = entry.title
-    res['title__type'] = 'text'
-    if 'summary_detail' in entry:
-        res['summary'] = entry.summary_detail.value
-        res['summary__type'] = mime2atom(entry.summary_detail.type)
-    else:
-        res['summary'] = ""
-        res['summary__type'] = "text"
-    res['content'] = entry.content[0].value
-    res['content__type'] = mime2atom(entry.content[0].type)
+    res.update(get_text('content', entry))
+    res.update(get_text('title', entry))
+    res.update(get_text('summary', entry))
     return res
 
 def unparse_atom_entry(entry, values):
@@ -105,24 +98,22 @@ def unparse_atom_entry(entry, values):
 def parse_collection_feed(uri, src):
     # loop over the entries and pull out the title, link/@rel="edit", updated and published.
     entries = []
-    f = StringIO(src)
-    f.url = uri
-    feed = feedparser.parse(f)
-    for e in feed.entries:
+    feed = fromstring(src)
+    for e in feed.findall(ATOM % "entry"):
         entry = {}
         try:
-            edit_links = [l.href for l in e.links if l.rel == "edit"]
+            edit_links = [l.attrib['href'] for l in e.findall(ATOM % "link") if 'rel' in l.attrib and l.attrib['rel'] == "edit"]
         except:
             edit_links = []
-        entry['edit'] = edit_links and edit_links[0] or ''
-        entry['title'] = e.title
-        entry['updated'] = e.updated
+        entry['edit'] = urljoin(uri, edit_links and edit_links[0] or '')
+        entry['title'] = e.find(ATOM % "title").text
+        entry['updated'] = e.find(ATOM % "updated").text 
         entries.append(entry)
-    if 'links' in feed:
-        next_links = [l.href for l in feed.links if l.rel == "next"]
+    next_links = [l.attrib['href'] for l in feed.findall(ATOM % "link") if 'rel' in l.attrib and l.attrib['rel'] == "next"]
+    if next_links:
+        next = urljoin(uri, next_links[0])
     else:
-        next_links = []
-        next = next_links and next_links[0] or ''
+        next = ''
 
     return (entries, next)
 

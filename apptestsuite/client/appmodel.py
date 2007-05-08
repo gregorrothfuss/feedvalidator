@@ -14,6 +14,8 @@ import cStringIO
 from ErrorReporting import *
 from urlparse import urljoin
 from ConfigParser import SafeConfigParser
+import os
+import anydbm
 
 httplib2.debuglevel=100
 
@@ -61,6 +63,30 @@ DEFAULT_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
 </entry>
 
 """
+ERROR_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
+<entry xmlns="http://www.w3.org/2005/Atom">
+  <title type="text">An Error Occured.</title>
+  <id>http://bitworking.org/foo/app/main/third</id>
+  <author>
+     <name>anonymous</name>
+  </author>
+  <updated>2006-08-04T15:52:00-05:00</updated>
+  <summary type="xhtml">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+    An error occured trying to access this entry.
+    Received a status code of: %d
+    </div>
+  </summary>
+  <content type="xhtml">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+    An error occured trying to access this entry.
+    </div>
+  </content>
+</entry>
+
+"""
+
+
 
 def report(reportable):
     if error_reporting_cb:
@@ -121,11 +147,13 @@ class Entry(object):
     def get(self):
         if self.member_uri:
             (resp, content) = self.h.request(self.member_uri)
+            if resp.status != 200:
+                content = ERROR_ENTRY % resp.status
         else:
             content = DEFAULT_ENTRY
-        validate_atom(content, self.member_uri)
+        #validate_atom(content, self.member_uri)
         self.element = fromstring(content)
-        d = apptools.parse_atom_entry(self.member_uri, content)
+        d = apptools.parse_atom_entry(self.member_uri, self.element)
         self._values.update(d)
 
     def put(self):
@@ -145,38 +173,61 @@ class Entry(object):
         logging.error(tostring(self.element))
         return tostring(self.element)
 
+class _EntryIterator(object):
+    def __init__(self, h, collection_uri, hit_map):
+        self.h = h
+        self.collection_uri = collection_uri
+        self.local_hit_map = {}
+        self.page_uri = collection_uri
+        self.hit_map = hit_map
+        self.entries = [] 
 
-class Collection:
-    def __init__(self, name, password, href, title, workspace, accept):
-        self.h = httplib2.Http(".cache")
-        self.h.follow_all_redirects = True
-        self.entry_info_cache = httplib2.FileCache(".cache/collections/") # For keys use md5.new(defrag_uri).hexdigest()
-        if name:
-            self.h.add_credentials(name, password)
+    def __iter__(self):
+        return self
+
+    def next(self):
+        # Once we've seen a 304 we should probably try "Cache-control: only-if-cached" first
+        # and only hit the web if we get a cache miss
+        if not self.entries:
+            if not self.page_uri:
+                raise StopIteration
+            (resp, content) = self.h.request(self.page_uri)
+            if resp.status != 200:
+                raise StopIteration
+            (self.entries, self.page_uri) = apptools.parse_collection_feed(self.page_uri, content)
+        if len(self.entries):
+            entry = self.entries[0]
+            del self.entries[0]
+            # Compute the hit hash from the "edit" URI and the app:edited/atom:updated
+            # Do we skip entries that do not have an "edit" URI?!?
+            return Entry(self.h, **entry)
+        else:
+            raise StopIteration
+
+
+class Collection(object):
+    def __init__(self, h, cachedir, href, title, workspace, accept):
+        self.h = h
+        self.cachedir = os.path.join(cachedir, httplib2.safename(href))
+        if not os.path.exists(self.cachedir):
+            os.makedirs(self.cachedir)
+        self.hitmap = anydbm.open(os.path.join(self.cachedir, "hitmap.db"), "c")
         self.href = href 
         self.title = title 
         self.workspace = workspace 
         self.accept = accept 
 
-        self.cachekey = md5.new(self.href).hexdigest()
-        cached_entry_info_raw = self.entry_info_cache.get(self.cachekey)
-
-        self.entry_info =  {
-            'next': None,
-            'entries': []
-        }
- 
-        if cached_entry_info_raw:
-            try:
-                self.entry_info = cPickle.load(cached_entry_info_raw)
-            except:
-                pass
-
     def post(self, entry):
         (resp, content) = self.h.request(self.href, method="POST", body=entry.tostring(), headers={
-                'content-type': 'application/atom+xml'
+                'content-type': 'application/atom+xml;type=entry'
                 }
             )
+
+    def iter_entries(self):
+        return _EntryIterator(self.h, self.href, self.hitmap)
+
+    def iter_new_entries(self):
+        pass
 
     def entries(self):
         (resp, content) = self.h.request(self.href)
@@ -185,7 +236,6 @@ class Collection:
             return (self.entry_info['entries'], self.entry_info['next'])
         elif resp.status < 300:
             validate_atom(content, self.href)
-            (self.entry_info['entries'], self.entry_info['next']) = apptools.parse_collection_feed(self.href, content)
             retval.extend([Entry(self.h, **e) for e in self.entry_info['entries']])
             self.entry_info_cache.set(self.cachekey, cPickle.dumps(self.entry_info))
             return (retval,  self.entry_info['next'])
@@ -199,64 +249,58 @@ class Collection:
 # TODO rename Model to Service
 # Convert Service to use not use ConfigParser, instead have it take 
 # a uri, name, and password. One Service object per Service document.
-class Model:
-    def __init__(self):
-        self.service_list = []
-        self.load_service_list()
-        self.current_collection = None
-        self.h = httplib2.Http(".cache")
+class Service:
+    def __init__(self, service_uri, cachedir, username, password):
+        self.h = httplib2.Http(os.path.join(cachedir, ".httplib2_cache"))
         self.h.follow_all_redirects = True
+        # A list of tuples, each a name and a list of Collection objects.
+        self._workspaces = [] 
+        (resp, content) = self.h.request(service_uri)
+        if resp.status == 200:
+            try:
+                service = fromstring(content)
+            except:
+                logging.error("Failed to parse service document at %s" % service_uri)
+            workspaces = service.findall(APP % "workspace")
+            for w in workspaces:
+                wstitle = w.find(ATOM % "title")
+                wsname = (wstitle != None) and wstitle.text or "No title"
+                collections = []
+                collection_elements = w.findall(APP % "collection")
+                for c in collection_elements:
+                    cp = {}
+                    title = c.find(ATOM % "title")
+                    cp['title'] = (title != None) and title.text or "No title"
+                    cp['href'] = urljoin(service_uri, c.get('href', ''))
+                    cp['workspace'] = wsname
+                    accepts = c.findall(APP % "accept")
+                    cp['accept'] = [node.text for node in accepts]
+                    collections.append(Collection(self.h, cachedir, **cp))
+                self._workspaces.append( (wsname, collections) )
 
-    def load_service_list(self):
-        config = SafeConfigParser()
-        config.read(['config.ini'])
+    def collections(self):
+        return sum([collections for (wsname, collections) in self._workspaces], [])
 
-        self.service_list = []
-        for service in config.sections():
-            uri = config.get(service, 'uri')
-            if config.has_option(service, 'name'):
-                name = config.get(service, 'name')
-                password = config.get(service, 'password')
-            else:
-                name = password = None
-            self.service_list.append((uri, name, password))
-
-    def save_service_list(self):
-        pass
+    def workspaces(self):
+        """Returns a list of tuples, (workspacename, collections), where
+        collections is a list of Collection objects, and workspacename is the
+        name of the workspace"""
+        return self._workspaces
     
-    def _parse_service(self, ws_list, uri, src, name, password):
-        service = fromstring(src)
-        workspaces = service.findall(APP % "workspace")
-        for w in workspaces:
-            wstitle = w.find(ATOM % "title")
-            wsname = (wstitle != None) and wstitle.text or "No title"
-            res = []
-            collections = w.findall(APP % "collection")
-            for c in collections:
-                cp = {}
-                title = c.find(ATOM % "title")
-                cp['title'] = (title != None) and title.text or "No title"
-                cp['href'] = urljoin(uri, c.get('href', ''))
-                cp['workspace'] = wsname
-                accept = c.findall(APP % "accept")
-                cp['accept'] = accept and accept[0].text or '' 
-                res.append(Collection(name, password, **cp))
-            ws_list.append( (wsname, res ) )
-        return ws_list 
-    
-    def all_workspaces(self):
-        ws = []
-        for (service_uri, name, password) in self.service_list:
-            if name:
-                self.h.add_credentials(name, password)
-            coll = []
-            (resp, content) = self.h.request(service_uri)
-            if resp.status == 200:
-                #try:
-                self._parse_service(ws, service_uri, content, name, password)
-                #except:
-                #    ws.append(("Failed to Load", []))
-                #    pass
-        return ws 
+
+#    def load_service_list(self):
+#        config = SafeConfigParser()
+#        config.read(['config.ini'])
+#
+#        self.service_list = []
+#        for service in config.sections():
+#            uri = config.get(service, 'uri')
+#            if config.has_option(service, 'name'):
+#                name = config.get(service, 'name')
+#                password = config.get(service, 'password')
+#            else:
+#                name = password = None
+#            self.service_list.append((uri, name, password))
+
 
 
