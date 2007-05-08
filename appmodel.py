@@ -63,6 +63,30 @@ DEFAULT_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
 </entry>
 
 """
+ERROR_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
+<entry xmlns="http://www.w3.org/2005/Atom">
+  <title type="text">An Error Occured.</title>
+  <id>http://bitworking.org/foo/app/main/third</id>
+  <author>
+     <name>anonymous</name>
+  </author>
+  <updated>2006-08-04T15:52:00-05:00</updated>
+  <summary type="xhtml">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+    An error occured trying to access this entry.
+    Received a status code of: %d
+    </div>
+  </summary>
+  <content type="xhtml">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+    An error occured trying to access this entry.
+    </div>
+  </content>
+</entry>
+
+"""
+
+
 
 def report(reportable):
     if error_reporting_cb:
@@ -123,11 +147,13 @@ class Entry(object):
     def get(self):
         if self.member_uri:
             (resp, content) = self.h.request(self.member_uri)
+            if resp.status != 200:
+                content = ERROR_ENTRY % resp.status
         else:
             content = DEFAULT_ENTRY
-        validate_atom(content, self.member_uri)
+        #validate_atom(content, self.member_uri)
         self.element = fromstring(content)
-        d = apptools.parse_atom_entry(self.member_uri, content)
+        d = apptools.parse_atom_entry(self.member_uri, self.element)
         self._values.update(d)
 
     def put(self):
@@ -147,6 +173,7 @@ class Entry(object):
         logging.error(tostring(self.element))
         return tostring(self.element)
 
+
 class _EntryIterator(object):
     def __init__(self, h, collection_uri, hit_map):
         self.h = h
@@ -155,23 +182,28 @@ class _EntryIterator(object):
         self.page_uri = collection_uri
         self.hit_map = hit_map
         self.entries = [] 
-        self.next = None
 
     def __iter__(self):
         return self
 
     def next(self):
-        if None == self.entries:
+        # Once we've seen a 304 we should probably try "Cache-control: only-if-cached" first
+        # and only hit the web if we get a cache miss
+        if not self.entries:
+            if not self.page_uri:
+                raise StopIteration
             (resp, content) = self.h.request(self.page_uri)
+            if resp.status != 200:
+                raise StopIteration
             (self.entries, self.page_uri) = apptools.parse_collection_feed(self.page_uri, content)
-        if len(entries):
-            entry = entries[0]
-            del entries[0]
+        if len(self.entries):
+            entry = self.entries[0]
+            del self.entries[0]
             # Compute the hit hash from the "edit" URI and the app:edited/atom:updated
             # Do we skip entries that do not have an "edit" URI?!?
             return Entry(self.h, **entry)
         else:
-            raise StopIterator
+            raise StopIteration
 
 
 class Collection(object):
@@ -191,9 +223,8 @@ class Collection(object):
                 'content-type': 'application/atom+xml;type=entry'
                 }
             )
-
     def iter_entries(self):
-        pass
+        return _EntryIterator(self.h, self.href, self.hitmap)
 
     def iter_new_entries(self):
         pass
