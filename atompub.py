@@ -7,9 +7,7 @@ try:
 except:
     from elementtree.ElementTree import fromstring, tostring
 import cPickle
-import md5
-import feedvalidator
-from feedvalidator import compatibility
+import sha 
 import cStringIO
 from ErrorReporting import *
 from urlparse import urljoin
@@ -29,19 +27,6 @@ logger_cb = None
 # e.g. error_reporting_cb(EntryCreationMustReturn201())
 error_reporting_cb = None
 
-
-# Monkey patch httplib2 to enable logging/validation
-#
-httplib2.Http.request_not_instrumented = httplib2.Http.request
-
-def instrumented_request(self, uri, method="GET", body=None, headers=None, redirections=httplib2.DEFAULT_MAX_REDIRECTS):
-    (resp, content) = httplib2.Http.request_not_instrumented(self, uri, method, body, headers, redirections)
-    # trigger a validation callback with the request and response info
-    if logger_cb:
-        logger_cb(uri, resp, content, method, body, headers, redirections)
-    return (resp, content)
-
-httplib2.Http.request = instrumented_request
 
 ENTRY_ELEMENTS = ["title", "title__type", "summary", "summary__type", "content", "content__type"]
 DEFAULT_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
@@ -92,28 +77,9 @@ def report(reportable):
     if error_reporting_cb:
         error_reporting_cb(reportable)
 
-def validate_atom(content, baseuri):
-    try:
-        events = feedvalidator.validateStream(cStringIO.StringIO(content), firstOccurrenceOnly=1,base=baseuri)['loggedEvents']
-    except feedvalidator.logging.ValidationFailure, vf:
-        events = [vf.event]
-
-    filterFunc = getattr(compatibility, "A")
-    err_events = filterFunc(events)
-    if len(err_events):
-        from feedvalidator.formatter.text_plain import Formatter
-        output = Formatter(err_events)
-        report(MustUseValidAtom("\n".join(output)))
-
-    warn_events = [event for event in events if compatibility._should(event)]
-    if len(warn_events):
-        from feedvalidator.formatter.text_plain import Formatter
-        output = Formatter(warn_events)
-        report(AtomShouldViolation("\n".join(output)))
-
 
 class Entry(object):
-    def __init__(self, h, edit, title="", title__type="text", updated="", published=""):
+    def __init__(self, h, edit, title="", title__type="text", updated="", published="", **kwargs):
         self.h = h
         self.member_uri = edit 
 
@@ -131,6 +97,7 @@ class Entry(object):
             "content": "",
             "content__type": "text"
         }
+        self._values.update(kwargs)
 
     # def get/set text element (takes both text and it's type)
     # def get/set link (rel and optional type).
@@ -192,6 +159,9 @@ class _EntryIterator(object):
         if not self.entries:
             if not self.page_uri:
                 raise StopIteration
+            # If we have already hit an entry we've seen before, in the hit_map,
+            # then try all requests first from the cache. Cache-control: only-if-cached.
+            # If that fails then request over the net.
             (resp, content) = self.h.request(self.page_uri)
             if resp.status != 200:
                 raise StopIteration
@@ -229,18 +199,18 @@ class Collection(object):
     def iter_new_entries(self):
         pass
 
-    def entries(self):
-        (resp, content) = self.h.request(self.href)
-        retval = [Entry(self.h, "", "(new...)")]
-        if resp['status'] == 304 and self.entry_info:
-            return (self.entry_info['entries'], self.entry_info['next'])
-        elif resp.status < 300:
-            validate_atom(content, self.href)
-            retval.extend([Entry(self.h, **e) for e in self.entry_info['entries']])
-            self.entry_info_cache.set(self.cachekey, cPickle.dumps(self.entry_info))
-            return (retval,  self.entry_info['next'])
-        else:
-            return (retval, None)
+#    def entries(self):
+#        (resp, content) = self.h.request(self.href)
+#        retval = [Entry(self.h, "", "(new...)")]
+#        if resp['status'] == 304 and self.entry_info:
+#            return (self.entry_info['entries'], self.entry_info['next'])
+#        elif resp.status < 300:
+#            validate_atom(content, self.href)
+#retval.extend([Entry(self.h, **e) for e in self.entry_info['entries']])
+#            self.entry_info_cache.set(self.cachekey, cPickle.dumps(self.entry_info))
+#            return (retval,  self.entry_info['next'])
+#        else:
+#            return (retval, None)
 
 # Need to save and restore service URIs along with
 # names and passwords.

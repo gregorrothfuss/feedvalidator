@@ -101,6 +101,7 @@ def parse_collection_feed(uri, src):
         entry['edit'] = urljoin(uri, edit_links and edit_links[0] or '')
         entry['title'] = e.find(ATOM % "title").text
         entry['updated'] = e.find(ATOM % "updated").text 
+        entry['edited'] = e.find(APP % "edited").text 
         entries.append(entry)
     next_links = [l.attrib['href'] for l in feed.findall(ATOM % "link") if 'rel' in l.attrib and l.attrib['rel'] == "next"]
     if next_links:

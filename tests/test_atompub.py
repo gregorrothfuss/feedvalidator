@@ -1,7 +1,7 @@
 import unittest
 import urlparse
 import httplib2
-import appmodel
+import atompub 
 import os
 from email import message_from_string, message_from_file
 import logging
@@ -27,6 +27,9 @@ class MyHttpReplacement:
         else:
             return (httplib2.Response({"status": "404"}), "")
 
+    def add_credentials(self, name, password):
+        pass
+
 
 class Test(unittest.TestCase):
     def setUp(self):
@@ -37,17 +40,17 @@ class Test(unittest.TestCase):
         httplib2.Http = self.old_httplib2 
 
     def test_404_service(self):
-        s = appmodel.Service("http://example.org/missing", ".", "", "")
+        s = atompub.Service("http://example.org/missing", ".", "", "")
         self.assertEqual(0, len(s.collections()))
         self.assertEqual(0, len(s.workspaces()))
 
     def test_simple_service(self):
-        s = appmodel.Service("http://example.org/service.atomsvc", ".", "", "")
+        s = atompub.Service("http://example.org/service.atomsvc", ".", "", "")
         self.assertEqual(1, len(s.collections()))
         self.assertEqual(1, len(s.workspaces()))
 
     def test_iter(self):
-        s = appmodel.Service("http://example.org/service.atomsvc", ".", "", "")
+        s = atompub.Service("http://example.org/service.atomsvc", ".", "", "")
         coll = s.collections()[0]
         entries = list(coll.iter_entries())
         self.assertEqual(37, len(entries))
@@ -55,7 +58,7 @@ class Test(unittest.TestCase):
         self.assertEqual("test post", entries[36]['title'])
 
     def test_single_entry_from_iter(self):
-        s = appmodel.Service("http://example.org/service.atomsvc", ".", "", "")
+        s = atompub.Service("http://example.org/service.atomsvc", ".", "", "")
         coll = s.collections()[0]
         iter = coll.iter_entries()
         entry = iter.next() 
