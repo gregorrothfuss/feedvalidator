@@ -253,6 +253,7 @@ class Service:
     def __init__(self, service_uri, cachedir, username, password):
         self.h = httplib2.Http(os.path.join(cachedir, ".httplib2_cache"))
         self.h.follow_all_redirects = True
+        self.h.add_credentials(username, password)
         # A list of tuples, each a name and a list of Collection objects.
         self._workspaces = [] 
         (resp, content) = self.h.request(service_uri)
@@ -284,20 +285,6 @@ class Service:
         name of the workspace"""
         return self._workspaces
     
-
-#    def load_service_list(self):
-#        config = SafeConfigParser()
-#        config.read(['config.ini'])
-#
-#        self.service_list = []
-#        for service in config.sections():
-#            uri = config.get(service, 'uri')
-#            if config.has_option(service, 'name'):
-#                name = config.get(service, 'name')
-#                password = config.get(service, 'password')
-#            else:
-#                name = password = None
-#            self.service_list.append((uri, name, password))
 
 
 

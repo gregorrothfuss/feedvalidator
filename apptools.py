@@ -6,7 +6,6 @@ except:
     from elementtree.ElementTree import fromstring, tostring, SubElement
 import re
 from urlparse import urljoin
-import appmodel
 from StringIO import StringIO
 
 ATOM = "{http://www.w3.org/2005/Atom}%s"
