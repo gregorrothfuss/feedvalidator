@@ -6,7 +6,6 @@ except:
     from elementtree.ElementTree import fromstring, tostring, SubElement
 import re
 from urlparse import urljoin
-import feedparser
 import appmodel
 from StringIO import StringIO
 
@@ -31,12 +30,7 @@ def get_text(name, entry):
             pass
         elif texttype == "xhtml":
             div = l[0].findall("{http://www.w3.org/1999/xhtml}div")[0]
-            if div != None:
-                if div.text:
-                    value = div.text
-                if value == None:
-                    value = ""
-                value = value + "".join( [tostring(c) for c in div.getchildren()] )
+            value = tostring(div).strip()[52:-11]
         else:
             value = ""
     if value == None:

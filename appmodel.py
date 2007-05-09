@@ -257,10 +257,6 @@ class Service:
         self._workspaces = [] 
         (resp, content) = self.h.request(service_uri)
         if resp.status == 200:
-            try:
-                self._parse_service(service_uri, content, name, password)
-            except:
-                logging.error("Failed to parse service document at %s" % service_uri)
             service = fromstring(content)
             workspaces = service.findall(APP % "workspace")
             for w in workspaces:

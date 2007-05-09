@@ -25,7 +25,6 @@ class MyHttpReplacement:
             headers = httplib2.Response(response)
             return (headers, body)
         else:
-            logging.error("Could not find %s" % fname)
             return (httplib2.Response({"status": "404"}), "")
 
 
@@ -60,10 +59,9 @@ class Test(unittest.TestCase):
         coll = s.collections()[0]
         iter = coll.iter_entries()
         entry = iter.next() 
+        self.assertEqual('', entry['content'])
         entry.get()
-        self.assertEqual('Some <html:b xmlns:html="http://www.w3.org/1999/xhtml">more</html:b> text.', entry['content'])
-
-
+        self.assertEqual('Some <html:b>more</html:b> text.', entry['content'])
 
 
 if __name__ == "__main__":

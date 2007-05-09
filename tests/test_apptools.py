@@ -49,7 +49,7 @@ class parseAtomTest(unittest.TestCase):
         res = apptools.parse_atom_entry(".", fromstring(ENTRY1))
         self.assertEqual(res['title'], "third")
         self.assertEqual(res['summary'], "<p>not much</p>")
-        self.assertTrue(res['content'].startswith("""\n    <html:p xmlns:html="http://www.w3.org/1999/xhtml">Some stuff</html:p>"""))
+        self.assertTrue(res['content'].startswith("""<html:p>Some stuff</html:p>"""))
 
 class unparseAtomEntryTest(unittest.TestCase):
 
@@ -64,7 +64,7 @@ class unparseAtomEntryTest(unittest.TestCase):
         new_text = tostring(element)
         d = apptools.parse_atom_entry(".", fromstring(new_text))
         self.assertEqual("This is text", d['content'])
-        self.assertEqual('<html:p xmlns:html="http://www.w3.org/1999/xhtml">This is text</html:p>', d['summary'])
+        self.assertEqual('<html:p>This is text</html:p>', d['summary'])
 
 class wrapTest(unittest.TestCase):
 
@@ -74,5 +74,4 @@ class wrapTest(unittest.TestCase):
         self.assertEqual("This\nis ", apptools.wrap("This is", 3))
         self.assertEqual("This\nis\n", apptools.wrap("This is\n", 3))
 
-unittest.main()
 
