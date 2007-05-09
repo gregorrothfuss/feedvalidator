@@ -4,7 +4,7 @@ status: 200
 <service xmlns="http://purl.org/atom/app#" xmlns:atom="http://www.w3.org/2005/Atom">
   <workspace>
     <atom:title>Main Site</atom:title>
-      <collection href="entry/index.atom">
+      <collection href="sync/index.atom">
            <atom:title>entry</atom:title>
         <accept>entry</accept>
          <categories fixed="yes" />

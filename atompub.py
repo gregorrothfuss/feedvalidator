@@ -1,34 +1,21 @@
 #!/usr/bin/env python2.4
 import httplib2
 import apptools
-import logging
 try:
     from xml.etree.ElementTree import fromstring, tostring
 except:
     from elementtree.ElementTree import fromstring, tostring
-import cPickle
 import sha 
 import cStringIO
-from ErrorReporting import *
 from urlparse import urljoin
-from ConfigParser import SafeConfigParser
 import os
 import anydbm
 
-httplib2.debuglevel=100
 
 ATOM = "{http://www.w3.org/2005/Atom}%s"
 APP = "{http://purl.org/atom/app#}%s"
-
-# Called as logger_cb(uri, resp, content, method, body, headers, redirections)
-logger_cb = None
-
-# Called with a ErrorReporting.Reportable
-# e.g. error_reporting_cb(EntryCreationMustReturn201())
-error_reporting_cb = None
-
-
 ENTRY_ELEMENTS = ["title", "title__type", "summary", "summary__type", "content", "content__type"]
+
 DEFAULT_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
 <entry xmlns="http://www.w3.org/2005/Atom">
   <title type="text">Title goes here.</title>
@@ -45,9 +32,8 @@ DEFAULT_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
     <div xmlns="http://www.w3.org/1999/xhtml">
     </div>
   </content>
-</entry>
+</entry>"""
 
-"""
 ERROR_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
 <entry xmlns="http://www.w3.org/2005/Atom">
   <title type="text">An Error Occured.</title>
@@ -67,15 +53,7 @@ ERROR_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
     An error occured trying to access this entry.
     </div>
   </content>
-</entry>
-
-"""
-
-
-
-def report(reportable):
-    if error_reporting_cb:
-        error_reporting_cb(reportable)
+</entry>"""
 
 
 class Entry(object):
@@ -137,42 +115,64 @@ class Entry(object):
     def tostring(self):
         apptools.unparse_atom_entry(self.element, self._values)
 
-        logging.error(tostring(self.element))
         return tostring(self.element)
 
 
 class _EntryIterator(object):
-    def __init__(self, h, collection_uri, hit_map):
+    def __init__(self, h, collection_uri, hit_map, onlynew=False):
         self.h = h
         self.collection_uri = collection_uri
         self.local_hit_map = {}
         self.page_uri = collection_uri
         self.hit_map = hit_map
         self.entries = [] 
+        self.old_stuff = False
+        self.onlynew = onlynew
 
     def __iter__(self):
         return self
+
+    def __del__(self):
+        self.hit_map.sync()
 
     def next(self):
         # Once we've seen a 304 we should probably try "Cache-control: only-if-cached" first
         # and only hit the web if we get a cache miss
         if not self.entries:
             if not self.page_uri:
+                self.hit_map.sync()
                 raise StopIteration
             # If we have already hit an entry we've seen before, in the hit_map,
             # then try all requests first from the cache. Cache-control: only-if-cached.
             # If that fails then request over the net.
-            (resp, content) = self.h.request(self.page_uri)
+            if self.old_stuff:
+                (resp, content) = self.h.request(self.page_uri, headers={'cache-control': 'only-if-cached'})
+                if resp.status != 304:
+                    (resp, content) = self.h.request(self.page_uri)
+                else:
+                    resp.status = 200
+            else:
+                (resp, content) = self.h.request(self.page_uri)
             if resp.status != 200:
+                self.hit_map.sync()
                 raise StopIteration
             (self.entries, self.page_uri) = apptools.parse_collection_feed(self.page_uri, content)
         if len(self.entries):
             entry = self.entries[0]
             del self.entries[0]
+            hash = sha.sha(entry["edit"] + entry["edited"]).hexdigest()
+            if hash in self.hit_map:
+                self.old_stuff = True
+                self.hit_map.sync()
+                if self.onlynew:
+                    raise StopIteration
+            else:
+                self.hit_map[hash] = entry["edit"] 
             # Compute the hit hash from the "edit" URI and the app:edited/atom:updated
             # Do we skip entries that do not have an "edit" URI?!?
             return Entry(self.h, **entry)
         else:
+            self.hit_map.sync()
             raise StopIteration
 
 
@@ -193,32 +193,13 @@ class Collection(object):
                 'content-type': 'application/atom+xml;type=entry'
                 }
             )
+
     def iter_entries(self):
         return _EntryIterator(self.h, self.href, self.hitmap)
 
     def iter_new_entries(self):
-        pass
+        return _EntryIterator(self.h, self.href, self.hitmap, onlynew=True)
 
-#    def entries(self):
-#        (resp, content) = self.h.request(self.href)
-#        retval = [Entry(self.h, "", "(new...)")]
-#        if resp['status'] == 304 and self.entry_info:
-#            return (self.entry_info['entries'], self.entry_info['next'])
-#        elif resp.status < 300:
-#            validate_atom(content, self.href)
-#retval.extend([Entry(self.h, **e) for e in self.entry_info['entries']])
-#            self.entry_info_cache.set(self.cachekey, cPickle.dumps(self.entry_info))
-#            return (retval,  self.entry_info['next'])
-#        else:
-#            return (retval, None)
-
-# Need to save and restore service URIs along with
-# names and passwords.
-
-# TODO convert the service list to use ConfigParser
-# TODO rename Model to Service
-# Convert Service to use not use ConfigParser, instead have it take 
-# a uri, name, and password. One Service object per Service document.
 class Service:
     def __init__(self, service_uri, cachedir, username, password):
         self.h = httplib2.Http(os.path.join(cachedir, ".httplib2_cache"))

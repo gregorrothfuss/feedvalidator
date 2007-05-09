@@ -10,6 +10,7 @@ except:
     from elementtree.ElementTree import fromstring, tostring
 import ErrorReporting
 from ConfigParser import SafeConfigParser
+import testclient
 
 CACHE_DIR = "cache"
 
@@ -79,8 +80,8 @@ class MyFrame1(wx.Frame):
 
 
         # Hook up the validator
-        atompub.logger_cb = self.http_logger
-        atompub.error_reporting_cb = self.error_logger
+        testclient.logger_cb = self.http_logger
+        testclient.error_reporting_cb = self.error_logger
 
         # Initialize the diagnostics
         self.diagnostics_root = self.diagnostics_tree.AddRoot("Events")
@@ -427,8 +428,6 @@ def indent(elem, level=0):
 
 def pretty_content(content):
     return content
-
-
 
 
 if __name__ == "__main__":

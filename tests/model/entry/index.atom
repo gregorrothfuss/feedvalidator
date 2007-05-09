@@ -5,7 +5,7 @@ status: 200
    <title type="text">BitWorking | Joe Gregorio</title>
    <link href="http://bitworking.org/projects/apptestsite/app.cgi/service/entry/" rel="self" />
    <link href="http://bitworking.org/" rel="alternate" />
-   <link href="index.page.2.atom" rel="next" />
+   <link href="index2.atom" rel="next" />
    <icon>http://bitworking.org/favicon.ico</icon>
    <updated>2007-05-08T06:27:02.977534-04:00</updated>
    <author>
@@ -22,11 +22,14 @@ status: 200
      <summary type="xhtml">
           <div xmlns="http://www.w3.org/1999/xhtml" />
      </summary>
-     <content/>  <!-- elided in the feed, will be present in the entry resource. -->
+         <content type="xhtml">
+              <div xmlns="http://www.w3.org/1999/xhtml">Some text.</div>
+         </content>
    </entry><entry>
      <title>Atom-Powered Robots Run Amok</title>
      <link href="http://bitworking.org/news/66/Atom-Powered-Robots-Run-Amok" />
-     <link href="66" rel="edit" />
+     <link href="66/" rel="edit" />
+     <link href="66/;media" rel="edit-media" />
      <id>http://bitworking.org/news/66/Atom-Powered-Robots-Run-Amok</id>
      <updated>2007-05-08T06:19:26.187114-04:00</updated>
      <app:edited>2007-05-08T06:19:26.187114-04:00</app:edited>
