@@ -8,7 +8,7 @@ ATOM_LINK = "{%s}link" % ATOM
 ATOM_ENTRY = "{%s}entry" % ATOM
 ATOM_TITLE= "{%s}title" % ATOM
 
-APP = "http://purl.org/atom/app#"
+APP = "http://www.w3.org/2007/app"
 APP_COLL = "{%s}collection" % APP
 APP_MEMBER_TYPE = "{%s}accept" % APP
 

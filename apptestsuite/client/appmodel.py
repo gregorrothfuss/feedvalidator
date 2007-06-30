@@ -20,7 +20,7 @@ import anydbm
 httplib2.debuglevel=100
 
 ATOM = "{http://www.w3.org/2005/Atom}%s"
-APP = "{http://purl.org/atom/app#}%s"
+APP = "{http://www.w3.org/2007/app}%s"
 
 # Called as logger_cb(uri, resp, content, method, body, headers, redirections)
 logger_cb = None

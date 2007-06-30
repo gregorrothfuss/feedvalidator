@@ -1,5 +1,5 @@
 SERVICE1 = """<?xml version="1.0" encoding='utf-8'?>
-<service xmlns="http://purl.org/atom/app#">
+<service xmlns="http://www.w3.org/2007/app">
   <workspace title="Main Site" > 
     <collection 
       title="My Blog Entries" 
