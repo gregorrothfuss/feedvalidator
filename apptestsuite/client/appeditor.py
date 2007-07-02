@@ -10,6 +10,7 @@ try:
 except:
     from elementtree.ElementTree import fromstring, tostring
 import ErrorReporting
+import itertools
 
 class MyFrame1(wx.Frame):
     def __init__(self, *args, **kwds):
@@ -89,14 +90,14 @@ class MyFrame1(wx.Frame):
         self.diagnostics_tree.SetItemImage(self.diagnostics_root, self.fldropenidx, wx.TreeItemIcon_Expanded)
 
         # Populate the collections 
-        self.model = appmodel.Model() 
         self.collections_root = self.collections_tree.AddRoot("Workspaces")
         self.collections_tree.SetPyData(self.collections_root, None)
-        for ws in self.model.all_workspaces():
-            ws_child = self.collections_tree.AppendItem(self.collections_root, ws[0])
-            for coll in ws[1]:
-                child = self.collections_tree.AppendItem(ws_child, coll.title)
-                self.collections_tree.SetPyData(child, coll)
+        for service in appmodel.load_service_list(".cache"):
+            for (ws_name, collection_list) in service.workspaces():
+                ws_child = self.collections_tree.AppendItem(self.collections_root, ws_name)
+                for coll in collection_list:
+                    child = self.collections_tree.AppendItem(ws_child, coll.title)
+                    self.collections_tree.SetPyData(child, coll)
         self.collections_tree.Expand(self.collections_root)
 
         # Current collection is a dict with 'href', 'accept', 'workspace' and 'title'
@@ -383,8 +384,7 @@ class MyFrame1(wx.Frame):
 
         # Create and empty Entry() here 
         if self.current_collection:
-            (entries, next) = self.current_collection.entries()
-            for e in entries:
+            for e in itertools.islice(self.current_collection.iter_entries(), 0, 20):
                 index = self.entries_listbox.Append(e['title'])       
                 self.entries_listbox.SetClientData(index, e)
 

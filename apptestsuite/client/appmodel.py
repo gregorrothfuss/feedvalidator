@@ -229,19 +229,6 @@ class Collection(object):
     def iter_new_entries(self):
         pass
 
-    def entries(self):
-        (resp, content) = self.h.request(self.href)
-        retval = [Entry(self.h, "", "(new...)")]
-        if resp['status'] == 304 and self.entry_info:
-            return (self.entry_info['entries'], self.entry_info['next'])
-        elif resp.status < 300:
-            validate_atom(content, self.href)
-            retval.extend([Entry(self.h, **e) for e in self.entry_info['entries']])
-            self.entry_info_cache.set(self.cachekey, cPickle.dumps(self.entry_info))
-            return (retval,  self.entry_info['next'])
-        else:
-            return (retval, None)
-
 # Need to save and restore service URIs along with
 # names and passwords.
 
@@ -253,6 +240,7 @@ class Service:
     def __init__(self, service_uri, cachedir, username, password):
         self.h = httplib2.Http(os.path.join(cachedir, ".httplib2_cache"))
         self.h.follow_all_redirects = True
+        self.h.add_credentials(username, password)
         # A list of tuples, each a name and a list of Collection objects.
         self._workspaces = [] 
         (resp, content) = self.h.request(service_uri)
@@ -288,19 +276,21 @@ class Service:
         return self._workspaces
     
 
-#    def load_service_list(self):
-#        config = SafeConfigParser()
-#        config.read(['config.ini'])
-#
-#        self.service_list = []
-#        for service in config.sections():
-#            uri = config.get(service, 'uri')
-#            if config.has_option(service, 'name'):
-#                name = config.get(service, 'name')
-#                password = config.get(service, 'password')
-#            else:
-#                name = password = None
-#            self.service_list.append((uri, name, password))
+def load_service_list(cachedir):
+    config = SafeConfigParser()
+    config.read(['config.ini'])
+
+    service_list = []
+    for service in config.sections():
+        uri = config.get(service, 'uri')
+        if config.has_option(service, 'name'):
+            name = config.get(service, 'name')
+            password = config.get(service, 'password')
+        else:
+            name = password = None
+        print name, password 
+        service_list.append(Service(uri, cachedir, name, password))
+    return service_list
 
 
 

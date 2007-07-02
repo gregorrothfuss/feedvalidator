@@ -9,6 +9,7 @@ from urlparse import urljoin
 import feedparser
 import appmodel
 from StringIO import StringIO
+from pretty import pretty
 
 ATOM = "{http://www.w3.org/2005/Atom}%s"
 APP = "{http://www.w3.org/2007/app}%s"
@@ -32,11 +33,7 @@ def get_text(name, entry):
         elif texttype == "xhtml":
             div = l[0].findall("{http://www.w3.org/1999/xhtml}div")[0]
             if div != None:
-                if div.text:
-                    value = div.text
-                if value == None:
-                    value = ""
-                value = value + "".join( [tostring(c) for c in div.getchildren()] )
+                value = pretty(div)
         else:
             value = ""
     if value == None:
