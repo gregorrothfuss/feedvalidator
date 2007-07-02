@@ -223,6 +223,9 @@ class Collection(object):
                 }
             )
 
+    def new_entry(self):
+        return Entry(self.h, "", "(new...)")
+
     def iter_entries(self):
         return _EntryIterator(self.h, self.href, self.hitmap)
 

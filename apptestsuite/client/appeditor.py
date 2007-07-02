@@ -382,8 +382,11 @@ class MyFrame1(wx.Frame):
         self.content_type_combo.SetStringSelection("xhtml")
         self._disable_entry_controls()
 
-        # Create and empty Entry() here 
+        # Create an empty Entry() here 
         if self.current_collection:
+            e = self.current_collection.new_entry()
+            index = self.entries_listbox.Append(e['title'])       
+            self.entries_listbox.SetClientData(index, e)
             for e in itertools.islice(self.current_collection.iter_entries(), 0, 20):
                 index = self.entries_listbox.Append(e['title'])       
                 self.entries_listbox.SetClientData(index, e)
