@@ -16,7 +16,10 @@ APP_MEMBER_TYPE = "{%s}accept" % APP
 INTROSPECTION_URI = "http://bitworking.org/projects/pyapp/collection.cgi?introspection=1"
 import httplib2
 import unittest
-import cElementTree
+try:
+    import xml.etree.cElementTree as cElementTree
+except:
+    import cElementTree
 import urlparse
 import cStringIO
 import sys
