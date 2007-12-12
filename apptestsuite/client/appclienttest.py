@@ -17,9 +17,10 @@ INTROSPECTION_URI = "http://bitworking.org/projects/pyapp/collection.cgi?introsp
 import httplib2
 import unittest
 try:
-    import xml.etree.cElementTree as cElementTree
+    from xml.etree.ElementTree import fromstring, tostring
 except:
-    import cElementTree
+    from elementtree.ElementTree import fromstring, tostring
+
 import urlparse
 import cStringIO
 import sys
@@ -80,7 +81,9 @@ class Test:
             self.reports.append(r)
 
     def run(self):
+        print "Run!!!"
         methods = [ method for method in dir(self) if callable(getattr(self, method)) and method.startswith("test")]
+        print methods
         for method in methods:
             print ".",
             sys.stdout.flush()
@@ -185,7 +188,7 @@ class EntryCollectionTests(Test):
             (response, content) = self.http.request(uri, "GET", headers = {"Cache-Control": "max-age=0"})
             if not validate_atom(self, content, uri):
                 return {}
-            tree = cElementTree.fromstring(content)
+            tree = fromstring(content)
             for e in tree.findall(ATOM_ENTRY):
                 reledit = [l.get('href', '') for l in e.findall(ATOM_LINK) if l.get('rel', '') == 'edit'] 
                 for t in reledit:
@@ -238,6 +241,7 @@ class EntryCollectionTests(Test):
 
         # Cleanup
         (response, content) = self.http.request(edituri, "DELETE")
+        print response
         if response.status >= 400:
             self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
         toc = self.enumerate_collection()
@@ -282,7 +286,7 @@ class EntryCollectionTests(Test):
         """ POST a fully utf-8 Atom Entry 
         """
         i18n = file("i18n.atom", "r").read()
-        tree = cElementTree.fromstring(i18n)
+        tree = fromstring(i18n)
         title_sent = tree.findall(".//" + ATOM_TITLE)[0].text
         (response, content) = self.http.request(self.entry_coll_uri, "POST", body=i18n, headers={'Content-Type': 'application/atom+xml', 'Content-Length' : str(len(i18n)), 'Accept': '*/*'})
         if response.status >= 400:
@@ -291,18 +295,18 @@ class EntryCollectionTests(Test):
             self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
         location = response['location']
         (response, content) = self.http.request(location, "GET")
-        tree = cElementTree.fromstring(content)
+        tree = fromstring(content)
         title_received = tree.findall(".//" + ATOM_TITLE)[0].text
         tree.findall(".//" + ATOM_TITLE)[0].text = "Non Internationalized"
         if title_sent != title_received:
             self.report(ServerShouldHandleI18NContent(u"%s != %s" % (title_sent, title_received)))
-        ni18n = cElementTree.tostring(tree)
+        ni18n = tostring(tree)
         (response, content) = self.http.request(location, "PUT", body=ni18n, headers={'Content-Length' : str(len(ni18n)), 'Content-Type' : 'application/atom+xml'})
         if response.status != 200:
             self.report(EntryUpdateFailed("Actually returned an HTTP status code %d" % response.status))
 
         (response, content) = self.http.request(location, "GET")
-        tree = cElementTree.fromstring(content)
+        tree = fromstring(content)
         title_received = tree.findall(".//" + ATOM_TITLE)[0].text
         if title_received != "Non Internationalized":
             self.report(EntryUpdateFailed("Title not updated. %s != %s" % (title_received, "Non Internationalized")))
@@ -365,13 +369,19 @@ run the Entry collection tests
 against it."""
         response, content = self.http.request(self.introspection_uri)
         # Add a validation step for the introspection document itself.
-        tree = cElementTree.fromstring(content)
-        for coll in tree.findall(".//" + APP_COLL):
+        tree = fromstring(content)
+        print content
+        collections = list(tree.findall(".//" + APP_COLL))
+        print collections
+        for coll in collections:
+            // Match with mime-parse here:
             coll_type = [t for t in coll.findall(APP_MEMBER_TYPE) if t.text == "entry"] 
             if coll_type:
                 test = EntryCollectionTests(coll.get('href'), self.http)
                 test.run()
                 self.reports.extend(test.reports)
+        if 0 == len(collections):
+            print "Didn't find any collections"
 
 def format(r):
     return """----------------------------------------

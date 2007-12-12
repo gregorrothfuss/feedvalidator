@@ -9,8 +9,8 @@ except:
         pass
 
 # try to start in a consistent, predictable location
-if sys.path[0]: os.chdir(sys.path[0])
-sys.path[0] = os.getcwd()
+if sys.path[0]: 
+    os.chdir(sys.path[0])
 
 # find all of the planet test modules
 modules = map(fullmodname, glob.glob(os.path.join('tests', 'test_*.py')))
