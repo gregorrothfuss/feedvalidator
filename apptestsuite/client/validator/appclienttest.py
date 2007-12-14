@@ -374,7 +374,7 @@ against it."""
         collections = list(tree.findall(".//" + APP_COLL))
         print collections
         for coll in collections:
-            // Match with mime-parse here:
+            # Match with mime-parse here:
             coll_type = [t for t in coll.findall(APP_MEMBER_TYPE) if t.text == "entry"] 
             if coll_type:
                 test = EntryCollectionTests(coll.get('href'), self.http)
