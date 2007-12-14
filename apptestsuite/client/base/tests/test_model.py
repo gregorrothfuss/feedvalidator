@@ -1,7 +1,7 @@
 import unittest
 import urlparse
 import httplib2
-import appmodel
+import base.appmodel as appmodel
 import os
 from email import message_from_string, message_from_file
 import logging

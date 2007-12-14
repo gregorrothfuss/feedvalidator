@@ -13,7 +13,7 @@ if sys.path[0]:
     os.chdir(sys.path[0])
 
 # find all of the planet test modules
-modules = map(fullmodname, glob.glob(os.path.join('base', 'tests', 'test_*.py')))
+modules = map(fullmodname, glob.glob(os.path.join('tests', 'test_*.py')))
 
 # load all of the tests into a suite
 try:

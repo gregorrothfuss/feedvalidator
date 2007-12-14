@@ -112,6 +112,43 @@ def validate_atom(content, baseuri):
         report(AtomShouldViolation("\n".join(output)))
 
 
+class Context(object):
+    """
+    Encapsulates the current service documents,
+    the current collection and the current 
+    entry. Can be picked and un-pickled to
+    achieve persistence of context.
+    """
+
+    def __init__(self):
+        self.service_document = None
+        self.collection = None 
+        self.entry = None
+        self.collection_stack = []
+
+    def __setattr__(self, name, value):
+        if name == "service_document":
+            self.__dict__[name] = value 
+            self.__dict__["collection"] = None 
+            self.__dict__["collection_stack"] = [] 
+            self.__dict__["entry"] = None 
+        elif name == "collection":
+            self.__dict__[name] = [value] 
+            self.__dict__["collection_stack"] = [] 
+            self.__dict__["entry"] = None 
+            pass
+        elif name == "entry":
+            self.__dict__[name] = [value] 
+            pass
+        else:
+            raise AttributeError("Attribute '%s' not found" % name)
+
+    def collpush(self, uri):
+        pass
+
+    def collpop(self, uri):
+        pass
+    
 class Entry(object):
     def __init__(self, h, edit, title="", title__type="text", updated="", published=""):
         self.h = h
