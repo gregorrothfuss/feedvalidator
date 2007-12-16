@@ -42,7 +42,7 @@ class MustRejectNonWellFormedAtom(Warning):
     text = _('A server SHOULD reject non-wellformed content. [XML 1.0 Section 5.1 Validating and Non-Validating Processors]')
 
 class InternalErrorEncountered(Error):
-    text = _('Internal error encountered. This error can occur if the site returned non-welllformed XML.')
+    text = _('Internal error encountered. This error can occur if the site returned non-well-formed XML.')
 
 class EntryCreationMustReturn201(Warning):
     text = _('When an entry is successfully created the server SHOULD return an HTTP status code of 201. [RFC 2616 Section 9.5 POST]')

@@ -3,6 +3,9 @@ __version__ = "$Revision: 150 $"
 __copyright__ = "Copyright (c) 2006 Joe Gregorio"
 __license__ = "MIT"
 
+import os 
+
+CUR_DIR = os.path.split(os.path.abspath(__file__))[0]
 ATOM = "http://www.w3.org/2005/Atom"
 ATOM_LINK = "{%s}link" % ATOM
 ATOM_ENTRY = "{%s}entry" % ATOM
@@ -13,7 +16,7 @@ APP_COLL = "{%s}collection" % APP
 APP_MEMBER_TYPE = "{%s}accept" % APP
 
 # By default we'll check the bitworking collection 
-INTROSPECTION_URI = "http://bitworking.org/projects/pyapp/collection.cgi?introspection=1"
+INTROSPECTION_URI = "http://bitworking.org/projects/apptestsite/app.cgi/service/;service_document"
 import httplib2
 import unittest
 try:
@@ -30,7 +33,17 @@ import time
 import feedvalidator
 from feedvalidator import compatibility
 from gettext import gettext as _
-from ErrorReporting import *
+try:
+    from atompubbase.ErrorReporting import *
+except:
+    path = os.path.split(CUR_DIR)[0]
+    sys.path.insert(0, path)
+    from atompubbase.ErrorReporting import *
+
+try:
+    import mimeparse
+except:
+    import atompubbase.mimeparse.mimeparse as mimeparse
 
 PACES = {'PaperTrail': False}
 
@@ -74,16 +87,20 @@ class Test:
     def __init__(self):
         self.reports = []
         self.context = ""
+        self.collection_uri = ""
+        self.entry_uri = ""
 
     def report(self, r):
-        r.context = self.context
+        r.context = self.context 
+        if self.collection_uri:
+            r.context += "\n\n   Collection: %s" % self.collection_uri
+        if self.entry_uri:
+            r.context += "\n   Entry: %s" % self.entry_uri
         if not hasattr(r, 'pace') or (hasattr(r, 'pace') and PACES[r.pace]):
             self.reports.append(r)
 
     def run(self):
-        print "Run!!!"
         methods = [ method for method in dir(self) if callable(getattr(self, method)) and method.startswith("test")]
-        print methods
         for method in methods:
             print ".",
             sys.stdout.flush()
@@ -174,8 +191,9 @@ class EntryCollectionTests(Test):
     def __init__(self, entry_coll_uri, http):
         Test.__init__(self)
         self.entry_coll_uri = entry_coll_uri
+        self.collection_uri = entry_coll_uri
         self.http = http
-        print "Testing <%s>\n" % entry_coll_uri
+        print "Testing: %s\n" % entry_coll_uri
 
     def setUp(self):
         time.sleep(1)
@@ -185,6 +203,7 @@ class EntryCollectionTests(Test):
         retval = {} 
         while relnext:
             uri = absolutize(self.entry_coll_uri, relnext[0])
+            self.entry_uri = uri
             (response, content) = self.http.request(uri, "GET", headers = {"Cache-Control": "max-age=0"})
             if not validate_atom(self, content, uri):
                 return {}
@@ -205,7 +224,7 @@ class EntryCollectionTests(Test):
             self.report(ShouldSupportCacheValidators("No ETag: header was sent with the response."))
             if not response.has_key('last-modified'):
                 self.report(ShouldSupportCacheValidators("No Last-Modified: header was sent with the response."))
-        if not response.has_key('content-encoding'):
+        if not response.has_key('-content-encoding'):
             self.report(ShouldSupportCompression("No Content-Encoding: header was sent with the response indicating that a compressed entity body was not returned."))
 
     def testContentWithSrc(self):
@@ -241,7 +260,6 @@ class EntryCollectionTests(Test):
 
         # Cleanup
         (response, content) = self.http.request(edituri, "DELETE")
-        print response
         if response.status >= 400:
             self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
         toc = self.enumerate_collection()
@@ -258,10 +276,11 @@ class EntryCollectionTests(Test):
         (response, content) = self.http.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_OTHER, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
         if response.status != 201:
             self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
-        edituri = response['location']
-        (response, content) = self.http.request(edituri, "DELETE")
-        if response.status >= 400:
-            self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
+        else:
+            edituri = response['location']
+            (response, content) = self.http.request(edituri, "DELETE")
+            if response.status >= 400:
+                self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
 
     def testMixedTextConstructs(self):
         """ POST a good Atom Entry with an entry 
@@ -285,7 +304,7 @@ class EntryCollectionTests(Test):
     def testI18n(self):
         """ POST a fully utf-8 Atom Entry 
         """
-        i18n = file("i18n.atom", "r").read()
+        i18n = file(os.path.join(CUR_DIR, "i18n.atom"), "r").read()
         tree = fromstring(i18n)
         title_sent = tree.findall(".//" + ATOM_TITLE)[0].text
         (response, content) = self.http.request(self.entry_coll_uri, "POST", body=i18n, headers={'Content-Type': 'application/atom+xml', 'Content-Length' : str(len(i18n)), 'Accept': '*/*'})
@@ -370,16 +389,14 @@ against it."""
         response, content = self.http.request(self.introspection_uri)
         # Add a validation step for the introspection document itself.
         tree = fromstring(content)
-        print content
         collections = list(tree.findall(".//" + APP_COLL))
-        print collections
         for coll in collections:
-            # Match with mime-parse here:
-            coll_type = [t for t in coll.findall(APP_MEMBER_TYPE) if t.text == "entry"] 
+            coll_type = [t for t in coll.findall(APP_MEMBER_TYPE) if mimeparse.best_match([t.text], 'application/atom+xml;type=entry')] 
             if coll_type:
-                test = EntryCollectionTests(coll.get('href'), self.http)
+                test = EntryCollectionTests(absolutize(self.introspection_uri, coll.get('href')), self.http)
                 test.run()
                 self.reports.extend(test.reports)
+                break
         if 0 == len(collections):
             print "Didn't find any collections"
 
