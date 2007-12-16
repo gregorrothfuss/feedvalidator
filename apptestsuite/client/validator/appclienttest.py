@@ -45,7 +45,6 @@ try:
 except:
     import atompubbase.mimeparse.mimeparse as mimeparse
 
-PACES = {'PaperTrail': False}
 
 def usage(option=""):
     print """Usage: appclienttest [OPTION] IntrospectionURI
@@ -55,8 +54,7 @@ def usage(option=""):
       --password=<pw>   Password to use for authentication. 
       --debug=<n>       Print debugging information for n > 0.
 
-      --<PaceName>      Where PaceName is one of [%s]
-""" % ", ".join(PACES.keys())
+"""
     if option:
         print """!! %s !!""" % option
 
@@ -96,8 +94,7 @@ class Test:
             r.context += "\n\n   Collection: %s" % self.collection_uri
         if self.entry_uri:
             r.context += "\n   Entry: %s" % self.entry_uri
-        if not hasattr(r, 'pace') or (hasattr(r, 'pace') and PACES[r.pace]):
-            self.reports.append(r)
+        self.reports.append(r)
 
     def run(self):
         methods = [ method for method in dir(self) if callable(getattr(self, method)) and method.startswith("test")]
@@ -424,7 +421,6 @@ def print_report(reports, reportclass):
 def main():
 
     options = ["help", "name=", "password=", "debug="]
-    options.extend(PACES.keys())
     try:
         opts, args = getopt.getopt(sys.argv[1:], "h", options )
     except getopt.GetoptError:
@@ -433,8 +429,6 @@ def main():
         sys.exit(2)
     name = password = None
     for o, a in opts:
-        if o.split("--")[-1] in PACES:
-            PACES[o.split("--")[-1]] = True
         if o == "--name":
             name = a
         if o == "--password":
@@ -454,17 +448,12 @@ def main():
         http.add_credentials(name, password)
     if not args:
         args = [INTROSPECTION_URI]
-    enforced_paces = [name for name in PACES.keys() if PACES[name]]
     for target_uri in args:
         print "Atom Client Tests"
         print "-----------------"
         print ""
         print "Testing the service at <%s>" % target_uri
         print ""
-        if enforced_paces:
-            print "The following Paces are being enforced <%s>" % ", ".join(enforced_paces)
-        else:
-            print "No Paces are being enforced."
         print ""
         print "Running: ",
         test = TestIntrospection(target_uri, http)
