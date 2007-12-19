@@ -6,7 +6,6 @@ except:
     from elementtree.ElementTree import fromstring, tostring, SubElement
 import re
 from urlparse import urljoin
-import feedparser
 import appmodel
 from StringIO import StringIO
 from pretty import pretty

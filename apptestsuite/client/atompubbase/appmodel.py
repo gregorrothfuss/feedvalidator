@@ -8,8 +8,8 @@ except:
     from elementtree.ElementTree import fromstring, tostring
 import cPickle
 import md5
-import feedvalidator
-from feedvalidator import compatibility
+#import feedvalidator
+#from feedvalidator import compatibility
 import cStringIO
 from ErrorReporting import *
 from urlparse import urljoin
@@ -92,25 +92,50 @@ def report(reportable):
     if error_reporting_cb:
         error_reporting_cb(reportable)
 
-def validate_atom(content, baseuri):
-    try:
-        events = feedvalidator.validateStream(cStringIO.StringIO(content), firstOccurrenceOnly=1,base=baseuri)['loggedEvents']
-    except feedvalidator.logging.ValidationFailure, vf:
-        events = [vf.event]
+#def validate_atom(content, baseuri):
+#    try:
+#        events = feedvalidator.validateStream(cStringIO.StringIO(content), firstOccurrenceOnly=1,base=baseuri)['loggedEvents']
+#    except feedvalidator.logging.ValidationFailure, vf:
+#        events = [vf.event]
+#
+#    filterFunc = getattr(compatibility, "A")
+#    err_events = filterFunc(events)
+#    if len(err_events):
+#        from feedvalidator.formatter.text_plain import Formatter
+#        output = Formatter(err_events)
+#        report(MustUseValidAtom("\n".join(output)))
+#
+#    warn_events = [event for event in events if compatibility._should(event)]
+#    if len(warn_events):
+#        from feedvalidator.formatter.text_plain import Formatter
+#        output = Formatter(warn_events)
+#        report(AtomShouldViolation("\n".join(output)))
 
-    filterFunc = getattr(compatibility, "A")
-    err_events = filterFunc(events)
-    if len(err_events):
-        from feedvalidator.formatter.text_plain import Formatter
-        output = Formatter(err_events)
-        report(MustUseValidAtom("\n".join(output)))
+# Each atompub object is just instantiated with a URI (via Context)
+# that it then uses to perform its work. Each object can produce
+# a list of URIs (possibly filtered) for the next level down.
+# The only parsing done will be xpaths to pick out URIs, e.g.
+# collections from service documents. The only other bit that might
+# be pulled out is titles when iterating through collections.
+#
+# Entry(Collection(Service(uri).collections()[0]).entries()[0])
+# collection.add(headers, body)
+# entry.get(headers)
+# entry.put(headers, body)
+# entry.delete()
+# entry.get_media(headers)
+# entry.put_media(headers, body)
+#
+# Each atompub object also has a 'to str' function
+# to output the representation.
 
-    warn_events = [event for event in events if compatibility._should(event)]
-    if len(warn_events):
-        from feedvalidator.formatter.text_plain import Formatter
-        output = Formatter(warn_events)
-        report(AtomShouldViolation("\n".join(output)))
-
+# Context will contain a set of headers to be globally applied to all requests.
+# The httplib2 instance is passed into here ala dependency inversion.
+#class Events
+#class Context
+#3class Service
+#class Collection
+#class Entry
 
 class Context(object):
     """
