@@ -133,7 +133,7 @@ def report(reportable):
 # The httplib2 instance is passed into here ala dependency inversion.
 #class Events
 #class Context
-#3class Service
+#class Service
 #class Collection
 #class Entry
 
