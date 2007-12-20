@@ -1,141 +1,58 @@
-#!/usr/bin/env python2.4
-import httplib2
-import apptools
-import logging
-try:
-    from xml.etree.ElementTree import fromstring, tostring
-except:
-    from elementtree.ElementTree import fromstring, tostring
-import cPickle
-import md5
-#import feedvalidator
-#from feedvalidator import compatibility
-import cStringIO
-from ErrorReporting import *
-from urlparse import urljoin
-from ConfigParser import SafeConfigParser
-import os
-import anydbm
-
-httplib2.debuglevel=100
-
-ATOM = "{http://www.w3.org/2005/Atom}%s"
-APP = "{http://www.w3.org/2007/app}%s"
-
-# Called as logger_cb(uri, resp, content, method, body, headers, redirections)
-logger_cb = None
-
-# Called with a ErrorReporting.Reportable
-# e.g. error_reporting_cb(EntryCreationMustReturn201())
-error_reporting_cb = None
-
-
-# Monkey patch httplib2 to enable logging/validation
-#
-httplib2.Http.request_not_instrumented = httplib2.Http.request
-
-def instrumented_request(self, uri, method="GET", body=None, headers=None, redirections=httplib2.DEFAULT_MAX_REDIRECTS):
-    (resp, content) = httplib2.Http.request_not_instrumented(self, uri, method, body, headers, redirections)
-    # trigger a validation callback with the request and response info
-    if logger_cb:
-        logger_cb(uri, resp, content, method, body, headers, redirections)
-    return (resp, content)
-
-httplib2.Http.request = instrumented_request
-
-ENTRY_ELEMENTS = ["title", "title__type", "summary", "summary__type", "content", "content__type"]
-DEFAULT_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
-<entry xmlns="http://www.w3.org/2005/Atom">
-  <title type="text">Title goes here.</title>
-  <id>http://bitworking.org/foo/app/main/third</id>
-  <author>
-     <name>anonymous</name>
-  </author>
-  <updated>2006-08-04T15:52:00-05:00</updated>
-  <summary type="xhtml">
-    <div xmlns="http://www.w3.org/1999/xhtml">
-    </div>
-  </summary>
-  <content type="xhtml">
-    <div xmlns="http://www.w3.org/1999/xhtml">
-    </div>
-  </content>
-</entry>
-
 """
-ERROR_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
-<entry xmlns="http://www.w3.org/2005/Atom">
-  <title type="text">An Error Occured.</title>
-  <id>http://bitworking.org/foo/app/main/third</id>
-  <author>
-     <name>anonymous</name>
-  </author>
-  <updated>2006-08-04T15:52:00-05:00</updated>
-  <summary type="xhtml">
-    <div xmlns="http://www.w3.org/1999/xhtml">
-    An error occured trying to access this entry.
-    Received a status code of: %d
-    </div>
-  </summary>
-  <content type="xhtml">
-    <div xmlns="http://www.w3.org/1999/xhtml">
-    An error occured trying to access this entry.
-    </div>
-  </content>
-</entry>
+There are four classes that make up the core
+of the atompub model.
+
+class Context
+class Service
+class Collection
+class Entry
+
+Context represents the current state, as represented
+by a service document, a collection and an entry.
+
+Each atompub object (Service, Collection, or Entry) 
+is just instantiated with a URI (or with a Context)
+that it then uses to perform its work. Each object can produce
+a list of URIs (actually Context objects) (possibly filtered) 
+for the next level down. The only parsing done will be xpaths to
+pick out URIs, e.g. collections from service documents. 
+Here is an example of how the classes are used together:
+
+    # Note that httplib2.Http is passed in so you 
+    # can pass in your own instrumented version, etc.
+    from httplib2 import Http
+    h = httplib2.Http()
+    c = Context(h, service_document_uri)
+    service = Service(c)
+
+    collection = Collection(service.iter()[0]) 
+    entry = Entry(collection.iter()[0])
+    (headers, body) = entry.get()
+    body = "<entry>...some updated stuff </entry>"
+    entry.put(body)
+
+    # saving and restoring is a matter of pickling/unpickling the Context.
+    import pickle
+    f = file("somefile", "w")
+    pickle.dump(entry.context(), f)
+
+    import pickle
+    f = file("somefile", "r")
+    context = pickle.load(f)
+    (service, collection, entry) = context.restore((Service, Collection, Entry))
+
+    # You don't have to use the context, Entries
+    # and Collections can be instantiated from URIs instead
+    # of Context instances.
+    entry = Entry(entry_edit_uri)
+
+
+Each atompub object also has a 'to str' function
+to output the representation.
 
 """
 
 
-
-def report(reportable):
-    if error_reporting_cb:
-        error_reporting_cb(reportable)
-
-#def validate_atom(content, baseuri):
-#    try:
-#        events = feedvalidator.validateStream(cStringIO.StringIO(content), firstOccurrenceOnly=1,base=baseuri)['loggedEvents']
-#    except feedvalidator.logging.ValidationFailure, vf:
-#        events = [vf.event]
-#
-#    filterFunc = getattr(compatibility, "A")
-#    err_events = filterFunc(events)
-#    if len(err_events):
-#        from feedvalidator.formatter.text_plain import Formatter
-#        output = Formatter(err_events)
-#        report(MustUseValidAtom("\n".join(output)))
-#
-#    warn_events = [event for event in events if compatibility._should(event)]
-#    if len(warn_events):
-#        from feedvalidator.formatter.text_plain import Formatter
-#        output = Formatter(warn_events)
-#        report(AtomShouldViolation("\n".join(output)))
-
-# Each atompub object is just instantiated with a URI (via Context)
-# that it then uses to perform its work. Each object can produce
-# a list of URIs (possibly filtered) for the next level down.
-# The only parsing done will be xpaths to pick out URIs, e.g.
-# collections from service documents. The only other bit that might
-# be pulled out is titles when iterating through collections.
-#
-# Entry(Collection(Service(uri).collections()[0]).entries()[0])
-# collection.add(headers, body)
-# entry.get(headers)
-# entry.put(headers, body)
-# entry.delete()
-# entry.get_media(headers)
-# entry.put_media(headers, body)
-#
-# Each atompub object also has a 'to str' function
-# to output the representation.
-
-# Context will contain a set of headers to be globally applied to all requests.
-# The httplib2 instance is passed into here ala dependency inversion.
-#class Events
-#class Context
-#class Service
-#class Collection
-#class Entry
 
 class Context(object):
     """
@@ -145,11 +62,12 @@ class Context(object):
     achieve persistence of context.
     """
 
-    def __init__(self):
-        self.service_document = None
+    def __init__(self, http):
+        self.service = None
         self.collection = None 
         self.entry = None
         self.collection_stack = []
+        self.http = http 
 
     def __setattr__(self, name, value):
         if name == "service_document":
@@ -175,187 +93,49 @@ class Context(object):
         pass
     
 class Entry(object):
-    def __init__(self, h, edit, title="", title__type="text", updated="", published=""):
-        self.h = h
-        self.member_uri = edit 
+    def __init__(self, context_or_uri):
+        pass
 
-        # Will be filled in with an ElementTree of the entry
-        # once self.get() is called.
-        self.element = None
+    def get(self, body=None, headers={}):
+        pass
 
-        self._values = {
-            "title" : title,
-            "title__type" : title__type,
-            "updated" : updated,
-            "published" : published,
-            "summary": "",
-            "summary__type": "text",
-            "content": "",
-            "content__type": "text"
-        }
+    def put(self, body, headers={}):
+        pass
 
-    # def get/set text element (takes both text and it's type)
-    # def get/set link (rel and optional type).
+    def delete(self, body=None, headers={}):
+        pass
 
-    def __getitem__(self, name):
-        return self._values.get(name, name.endswith("__type") and 'text' or '')
-
-    def __setitem__(self, name, value):
-        if name in self._values:
-            self._values[name] = value
-        else:
-            raise IndexError, "index '%s' not found" % name
-
-    def get(self):
-        if self.member_uri:
-            (resp, content) = self.h.request(self.member_uri)
-            if resp.status != 200:
-                content = ERROR_ENTRY % resp.status
-        else:
-            content = DEFAULT_ENTRY
-        #validate_atom(content, self.member_uri)
-        self.element = fromstring(content)
-        d = apptools.parse_atom_entry(self.member_uri, self.element)
-        self._values.update(d)
-
-    def put(self):
-        # loop over the values in sef._values, update self.element
-        # then serialize the element into a PUT
-        self.h.request(self.member_uri, method="PUT", body=self.tostring(), headers={
-                'content-type': 'application/atom+xml'
-                }
-            )
-
-    def delete(self):
-        self.h.request(self.member_uri, method="DELETE")
-
-    def tostring(self):
-        apptools.unparse_atom_entry(self.element, self._values)
-
-        logging.error(tostring(self.element))
-        return tostring(self.element)
-
-class _EntryIterator(object):
-    def __init__(self, h, collection_uri, hit_map):
-        self.h = h
-        self.collection_uri = collection_uri
-        self.local_hit_map = {}
-        self.page_uri = collection_uri
-        self.hit_map = hit_map
-        self.entries = [] 
-
-    def __iter__(self):
-        return self
-
-    def next(self):
-        # Once we've seen a 304 we should probably try "Cache-control: only-if-cached" first
-        # and only hit the web if we get a cache miss
-        if not self.entries:
-            if not self.page_uri:
-                raise StopIteration
-            (resp, content) = self.h.request(self.page_uri)
-            if resp.status != 200:
-                raise StopIteration
-            (self.entries, self.page_uri) = apptools.parse_collection_feed(self.page_uri, content)
-        if len(self.entries):
-            entry = self.entries[0]
-            del self.entries[0]
-            # Compute the hit hash from the "edit" URI and the app:edited/atom:updated
-            # Do we skip entries that do not have an "edit" URI?!?
-            return Entry(self.h, **entry)
-        else:
-            raise StopIteration
+    def context(self):
+        pass
 
 
 class Collection(object):
-    def __init__(self, h, cachedir, href, title, workspace, accept):
-        self.h = h
-        self.cachedir = os.path.join(cachedir, httplib2.safename(href))
-        if not os.path.exists(self.cachedir):
-            os.makedirs(self.cachedir)
-        self.hitmap = anydbm.open(os.path.join(self.cachedir, "hitmap.db"), "c")
-        self.href = href 
-        self.title = title 
-        self.workspace = workspace 
-        self.accept = accept 
-
-    def post(self, entry):
-        (resp, content) = self.h.request(self.href, method="POST", body=entry.tostring(), headers={
-                'content-type': 'application/atom+xml;type=entry'
-                }
-            )
-
-    def new_entry(self):
-        return Entry(self.h, "", "(new...)")
-
-    def iter_entries(self):
-        return _EntryIterator(self.h, self.href, self.hitmap)
-
-    def iter_new_entries(self):
+    def __init__(self, context_or_uri):
         pass
 
-# Need to save and restore service URIs along with
-# names and passwords.
+    def get(self, body=None, headers={}):
+        pass
 
-# TODO convert the service list to use ConfigParser
-# TODO rename Model to Service
-# Convert Service to use not use ConfigParser, instead have it take 
-# a uri, name, and password. One Service object per Service document.
-class Service:
-    def __init__(self, service_uri, cachedir, username, password):
-        self.h = httplib2.Http(os.path.join(cachedir, ".httplib2_cache"))
-        self.h.follow_all_redirects = True
-        self.h.add_credentials(username, password)
-        # A list of tuples, each a name and a list of Collection objects.
-        self._workspaces = [] 
-        (resp, content) = self.h.request(service_uri)
-        if resp.status == 200:
-            try:
-                service = fromstring(content)
-            except:
-                logging.error("Failed to parse service document at %s" % service_uri)
-            workspaces = service.findall(APP % "workspace")
-            for w in workspaces:
-                wstitle = w.find(ATOM % "title")
-                wsname = (wstitle != None) and wstitle.text or "No title"
-                collections = []
-                collection_elements = w.findall(APP % "collection")
-                for c in collection_elements:
-                    cp = {}
-                    title = c.find(ATOM % "title")
-                    cp['title'] = (title != None) and title.text or "No title"
-                    cp['href'] = urljoin(service_uri, c.get('href', ''))
-                    cp['workspace'] = wsname
-                    accepts = c.findall(APP % "accept")
-                    cp['accept'] = [node.text for node in accepts]
-                    collections.append(Collection(self.h, cachedir, **cp))
-                self._workspaces.append( (wsname, collections) )
+    def get_next(self, body=None, headers={}):
+        pass
 
-    def collections(self):
-        return sum([collections for (wsname, collections) in self._workspaces], [])
+    def post(self, body, headers={}):
+        pass
 
-    def workspaces(self):
-        """Returns a list of tuples, (workspacename, collections), where
-        collections is a list of Collection objects, and workspacename is the
-        name of the workspace"""
-        return self._workspaces
-    
+    def iter(self):
+        pass
 
-def load_service_list(cachedir):
-    config = SafeConfigParser()
-    config.read(['config.ini'])
+class Service(object):
+    def __init__(self, context_or_uri):
+        pass
 
-    service_list = []
-    for service in config.sections():
-        uri = config.get(service, 'uri')
-        if config.has_option(service, 'name'):
-            name = config.get(service, 'name')
-            password = config.get(service, 'password')
-        else:
-            name = password = None
-        print name, password 
-        service_list.append(Service(uri, cachedir, name, password))
-    return service_list
+    def get(self, body=None, headers={}):
+        pass
 
+    def iter(self):
+        pass
+
+    def iter_match(self, mimetype):
+        pass
 
 
