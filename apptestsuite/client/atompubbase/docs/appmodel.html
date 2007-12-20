@@ -49,16 +49,13 @@ Here&nbsp;is&nbsp;an&nbsp;example&nbsp;of&nbsp;how&nbsp;the&nbsp;classes&nbsp;ar
 &nbsp;&nbsp;&nbsp;&nbsp;import&nbsp;pickle<br>
 &nbsp;&nbsp;&nbsp;&nbsp;f&nbsp;=&nbsp;file("somefile",&nbsp;"r")<br>
 &nbsp;&nbsp;&nbsp;&nbsp;context&nbsp;=&nbsp;pickle.load(f)<br>
-&nbsp;&nbsp;&nbsp;&nbsp;(service,&nbsp;collection,&nbsp;entry)&nbsp;=&nbsp;context.restore((<a href="#Service">Service</a>,&nbsp;<a href="#Collection">Collection</a>,&nbsp;<a href="#Entry">Entry</a>))<br>
+&nbsp;&nbsp;&nbsp;&nbsp;#&nbsp;You&nbsp;pass&nbsp;the&nbsp;class&nbsp;names&nbsp;into&nbsp;restore()&nbsp;for&nbsp;it&nbsp;to&nbsp;use&nbsp;to&nbsp;restore&nbsp;the&nbsp;context.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;(service,&nbsp;collection,&nbsp;entry)&nbsp;=&nbsp;context.restore(<a href="#Service">Service</a>,&nbsp;<a href="#Collection">Collection</a>,&nbsp;<a href="#Entry">Entry</a>)<br>
 &nbsp;<br>
 &nbsp;&nbsp;&nbsp;&nbsp;#&nbsp;You&nbsp;don't&nbsp;have&nbsp;to&nbsp;use&nbsp;the&nbsp;context,&nbsp;Entries<br>
 &nbsp;&nbsp;&nbsp;&nbsp;#&nbsp;and&nbsp;Collections&nbsp;can&nbsp;be&nbsp;instantiated&nbsp;from&nbsp;URIs&nbsp;instead<br>
 &nbsp;&nbsp;&nbsp;&nbsp;#&nbsp;of&nbsp;<a href="#Context">Context</a>&nbsp;instances.<br>
-&nbsp;&nbsp;&nbsp;&nbsp;entry&nbsp;=&nbsp;<a href="#Entry">Entry</a>(entry_edit_uri)<br>
-&nbsp;<br>
-&nbsp;<br>
-Each&nbsp;atompub&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;also&nbsp;has&nbsp;a&nbsp;'to&nbsp;str'&nbsp;function<br>
-to&nbsp;output&nbsp;the&nbsp;representation.</tt></p>
+&nbsp;&nbsp;&nbsp;&nbsp;entry&nbsp;=&nbsp;<a href="#Entry">Entry</a>(entry_edit_uri)</tt></p>
 <p>
 <table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
 <tr bgcolor="#ee77aa">
@@ -121,6 +118,8 @@ achieve&nbsp;persistence&nbsp;of&nbsp;context.<br>&nbsp;</tt></td></tr>
 <dl><dt><a name="Context-collpop"><strong>collpop</strong></a>(self, uri)</dt></dl>
 
 <dl><dt><a name="Context-collpush"><strong>collpush</strong></a>(self, uri)</dt></dl>
+
+<dl><dt><a name="Context-restore"><strong>restore</strong></a>(self, service_type, collection_type, entry_type)</dt></dl>
 
 <hr>
 Data and other attributes defined here:<br>

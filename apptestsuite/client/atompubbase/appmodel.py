@@ -39,16 +39,13 @@ Here is an example of how the classes are used together:
     import pickle
     f = file("somefile", "r")
     context = pickle.load(f)
-    (service, collection, entry) = context.restore((Service, Collection, Entry))
+    # You pass the class names into restore() for it to use to restore the context.
+    (service, collection, entry) = context.restore(Service, Collection, Entry)
 
     # You don't have to use the context, Entries
     # and Collections can be instantiated from URIs instead
     # of Context instances.
     entry = Entry(entry_edit_uri)
-
-
-Each atompub object also has a 'to str' function
-to output the representation.
 
 """
 
@@ -85,6 +82,9 @@ class Context(object):
             pass
         else:
             raise AttributeError("Attribute '%s' not found" % name)
+
+    def restore(self, service_type, collection_type, entry_type):
+        pass
 
     def collpush(self, uri):
         pass
