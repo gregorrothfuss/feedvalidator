@@ -18,7 +18,6 @@ APP_MEMBER_TYPE = "{%s}accept" % APP
 # By default we'll check the bitworking collection 
 INTROSPECTION_URI = "http://bitworking.org/projects/apptestsite/app.cgi/service/;service_document"
 import httplib2
-import unittest
 try:
     from xml.etree.ElementTree import fromstring, tostring
 except:
@@ -434,7 +433,6 @@ def main():
         if o == "--password":
             password = a
         if o == "--debug":
-            print "debug level"
             httplib2.debuglevel = int(a)
         if o in ["h", "--help"]:
             usage()

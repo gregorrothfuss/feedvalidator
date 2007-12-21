@@ -32,40 +32,7 @@ class MyHttpReplacement:
 
 
 class Test(unittest.TestCase):
-    def setUp(self):
-        self.old_httplib2 = httplib2.Http
-        httplib2.Http = MyHttpReplacement
-
-    def tearDown(self):
-        httplib2.Http = self.old_httplib2 
-
-    def test_404_service(self):
-        s = appmodel.Service("http://example.org/missing", ".", "", "")
-        self.assertEqual(0, len(s.collections()))
-        self.assertEqual(0, len(s.workspaces()))
-
-    def test_simple_service(self):
-        s = appmodel.Service("http://example.org/service.atomsvc", ".", "", "")
-        self.assertEqual(1, len(s.collections()))
-        self.assertEqual(1, len(s.workspaces()))
-
-    def test_iter(self):
-        s = appmodel.Service("http://example.org/service.atomsvc", ".", "", "")
-        coll = s.collections()[0]
-        entries = list(coll.iter_entries())
-        self.assertEqual(37, len(entries))
-        self.assertEqual("Atom-Powered Robots Run Amok", entries[0]['title'])
-        self.assertEqual("test post", entries[36]['title'])
-
-    def test_single_entry_from_iter(self):
-        s = appmodel.Service("http://example.org/service.atomsvc", ".", "", "")
-        coll = s.collections()[0]
-        iter = coll.iter_entries()
-        entry = iter.next() 
-        entry.get()
-        # Need to move this type of stuff out, removing the test for now.
-        #self.assertEqual('Some <html:b xmlns:html="http://www.w3.org/1999/xhtml">more</html:b> text.', entry['content'])
-
+    pass
 
 
 

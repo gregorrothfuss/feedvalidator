@@ -56,86 +56,62 @@ class Context(object):
     entry. Can be picked and un-pickled to
     achieve persistence of context.
     """
-    service = None
-    collection = None 
-    entry = None
-    http = None
+    _service = None
+    _collection = None 
+    _entry = None
+    _http = None
+    _collection_stack = []
 
     def __init__(self, http = None):
-        self.collection_stack = []
+        self._collection_stack = []
         self.http = http
 
-    def __setattr__(self, name, value):
-        if name == "service_document":
-            self.__dict__[name] = value 
-            self.__dict__["collection"] = None 
-            self.__dict__["collection_stack"] = [] 
-            self.__dict__["entry"] = None 
-        elif name == "collection":
-            self.__dict__[name] = [value] 
-            self.__dict__["collection_stack"] = [] 
-            self.__dict__["entry"] = None 
-            pass
-        elif name == "entry":
-            self.__dict__[name] = [value] 
-            pass
-        else:
-            raise AttributeError("Attribute '%s' not found" % name)
+    def _get_service(self):
+        return self._service
+
+    def _set_service(self, service):
+        self._service = service
+        self._collection = None 
+        self._collection_stack = [] 
+        self._entry = None 
+
+    service = property(_get_service, _set_service, None, "The URI of the Service Document. None if not set yet.")
+
+    def _get_collection(self):
+        return self._collection
+
+    def _set_collection(self, collection):
+        self._collection = collection
+        self._collection_stack = []
+        self._entry = None 
+
+    collection = property(_get_collection, _set_collection, None, "The URI of the collection. None if not set yet.")
+
+    def _get_entry(self):
+        return self._entry
+
+    def _set_entry(self, entry):
+        self._entry = entry
+
+    entry = property(_get_entry, _set_entry, None, "The URI of the entry. None if not set yet.")
 
     def restore(self, service_type, collection_type, entry_type):
-        return (service_type(self), collection_type(self), entry_type(self))
+        """
+        Restore the state from a Context. The types of the objects
+        to be instantiate for the service, collection and entry 
+        are passed in. If no URI is set for a specific level 
+        then None is returned for that instance.
+        """
+        service = self._service and service_type(self) or None
+        collection = self._collection and collection_type(self) or None
+        entry = self._entry and entry_type(self) or None
+        return (service, collection, entry)
 
     def collpush(self, uri):
-        self.collection_stack.append(self.collection)
-        self.collection = uri
+        self._collection_stack.append((self._collection, self._entry))
+        self._collection = uri
+        self._entry = None 
 
-    def collpop(self, uri):
-        self.collection = self.collection_stack.pop()
-    
-class Entry(object):
-    def __init__(self, context_or_uri):
-        pass
-
-    def get(self, body=None, headers={}):
-        pass
-
-    def put(self, body, headers={}):
-        pass
-
-    def delete(self, body=None, headers={}):
-        pass
-
-    def context(self):
-        pass
-
-
-class Collection(object):
-    def __init__(self, context_or_uri):
-        pass
-
-    def get(self, body=None, headers={}):
-        pass
-
-    def get_next(self, body=None, headers={}):
-        pass
-
-    def post(self, body, headers={}):
-        pass
-
-    def iter(self):
-        pass
-
-class Service(object):
-    def __init__(self, context_or_uri):
-        pass
-
-    def get(self, body=None, headers={}):
-        pass
-
-    def iter(self):
-        pass
-
-    def iter_match(self, mimetype):
-        pass
-
-
+    def collpop(self):
+        self._collection, self._entry = self._collection_stack.pop()
+ 

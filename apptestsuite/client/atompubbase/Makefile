@@ -1,4 +1,4 @@
-MODULES = events appmodel
+MODULES = events model
 
 default: doc 
 

@@ -1,0 +1,128 @@
+
+<!doctype html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html><head><title>Python: module model</title>
+</head><body bgcolor="#f0f0f8">
+
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="heading">
+<tr bgcolor="#7799ee">
+<td valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial">&nbsp;<br><big><big><strong>model</strong></big></big></font></td
+><td align=right valign=bottom
+><font color="#ffffff" face="helvetica, arial"><a href=".">index</a><br><a href="file:/web/script/jcgregorio/bitworking.org/projects/apptestsuite/client/atompubbase/model.py">/web/script/jcgregorio/bitworking.org/projects/apptestsuite/client/atompubbase/model.py</a></font></td></tr></table>
+    <p><tt>There&nbsp;are&nbsp;four&nbsp;classes&nbsp;that&nbsp;make&nbsp;up&nbsp;the&nbsp;core<br>
+of&nbsp;the&nbsp;atompub&nbsp;model.<br>
+&nbsp;<br>
+class&nbsp;<a href="#Context">Context</a><br>
+class&nbsp;Service<br>
+class&nbsp;Collection<br>
+class&nbsp;Entry<br>
+&nbsp;<br>
+<a href="#Context">Context</a>&nbsp;represents&nbsp;the&nbsp;current&nbsp;state,&nbsp;as&nbsp;represented<br>
+by&nbsp;a&nbsp;service&nbsp;document,&nbsp;a&nbsp;collection&nbsp;and&nbsp;an&nbsp;entry.<br>
+&nbsp;<br>
+Each&nbsp;atompub&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;(Service,&nbsp;Collection,&nbsp;or&nbsp;Entry)&nbsp;<br>
+is&nbsp;just&nbsp;instantiated&nbsp;with&nbsp;a&nbsp;URI&nbsp;(or&nbsp;with&nbsp;a&nbsp;<a href="#Context">Context</a>)<br>
+that&nbsp;it&nbsp;then&nbsp;uses&nbsp;to&nbsp;perform&nbsp;its&nbsp;work.&nbsp;Each&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;can&nbsp;produce<br>
+a&nbsp;list&nbsp;of&nbsp;URIs&nbsp;(actually&nbsp;<a href="#Context">Context</a>&nbsp;objects)&nbsp;(possibly&nbsp;filtered)&nbsp;<br>
+for&nbsp;the&nbsp;next&nbsp;level&nbsp;down.&nbsp;The&nbsp;only&nbsp;parsing&nbsp;done&nbsp;will&nbsp;be&nbsp;xpaths&nbsp;to<br>
+pick&nbsp;out&nbsp;URIs,&nbsp;e.g.&nbsp;collections&nbsp;from&nbsp;service&nbsp;documents.&nbsp;<br>
+Here&nbsp;is&nbsp;an&nbsp;example&nbsp;of&nbsp;how&nbsp;the&nbsp;classes&nbsp;are&nbsp;used&nbsp;together:<br>
+&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;#&nbsp;Note&nbsp;that&nbsp;httplib2.Http&nbsp;is&nbsp;passed&nbsp;in&nbsp;so&nbsp;you&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;#&nbsp;can&nbsp;pass&nbsp;in&nbsp;your&nbsp;own&nbsp;instrumented&nbsp;version,&nbsp;etc.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;from&nbsp;httplib2&nbsp;import&nbsp;Http<br>
+&nbsp;&nbsp;&nbsp;&nbsp;h&nbsp;=&nbsp;httplib2.Http()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;c&nbsp;=&nbsp;<a href="#Context">Context</a>(h,&nbsp;service_document_uri)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;service&nbsp;=&nbsp;Service(c)<br>
+&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;collection&nbsp;=&nbsp;Collection(service.iter()[0])&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;entry&nbsp;=&nbsp;Entry(collection.iter()[0])<br>
+&nbsp;&nbsp;&nbsp;&nbsp;(headers,&nbsp;body)&nbsp;=&nbsp;entry.get()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;body&nbsp;=&nbsp;"&lt;entry&gt;...some&nbsp;updated&nbsp;stuff&nbsp;&lt;/entry&gt;"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;entry.put(body)<br>
+&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;#&nbsp;saving&nbsp;and&nbsp;restoring&nbsp;is&nbsp;a&nbsp;matter&nbsp;of&nbsp;pickling/unpickling&nbsp;the&nbsp;<a href="#Context">Context</a>.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;import&nbsp;pickle<br>
+&nbsp;&nbsp;&nbsp;&nbsp;f&nbsp;=&nbsp;file("somefile",&nbsp;"w")<br>
+&nbsp;&nbsp;&nbsp;&nbsp;pickle.dump(entry.context(),&nbsp;f)<br>
+&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;import&nbsp;pickle<br>
+&nbsp;&nbsp;&nbsp;&nbsp;f&nbsp;=&nbsp;file("somefile",&nbsp;"r")<br>
+&nbsp;&nbsp;&nbsp;&nbsp;context&nbsp;=&nbsp;pickle.load(f)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;#&nbsp;You&nbsp;pass&nbsp;the&nbsp;class&nbsp;names&nbsp;into&nbsp;restore()&nbsp;for&nbsp;it&nbsp;to&nbsp;use&nbsp;to&nbsp;restore&nbsp;the&nbsp;context.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;(service,&nbsp;collection,&nbsp;entry)&nbsp;=&nbsp;context.restore(Service,&nbsp;Collection,&nbsp;Entry)<br>
+&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;#&nbsp;You&nbsp;don't&nbsp;have&nbsp;to&nbsp;use&nbsp;the&nbsp;context,&nbsp;Entries<br>
+&nbsp;&nbsp;&nbsp;&nbsp;#&nbsp;and&nbsp;Collections&nbsp;can&nbsp;be&nbsp;instantiated&nbsp;from&nbsp;URIs&nbsp;instead<br>
+&nbsp;&nbsp;&nbsp;&nbsp;#&nbsp;of&nbsp;<a href="#Context">Context</a>&nbsp;instances.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;entry&nbsp;=&nbsp;Entry(entry_edit_uri)</tt></p>
+<p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ee77aa">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Classes</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#ee77aa"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><dl>
+<dt><font face="helvetica, arial"><a href="__builtin__.html#object">__builtin__.object</a>
+</font></dt><dd>
+<dl>
+<dt><font face="helvetica, arial"><a href="model.html#Context">Context</a>
+</font></dt></dl>
+</dd>
+</dl>
+ <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="Context">class <strong>Context</strong></a>(<a href="__builtin__.html#object">__builtin__.object</a>)</font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt>Encapsulates&nbsp;the&nbsp;current&nbsp;service&nbsp;documents,<br>
+the&nbsp;current&nbsp;collection&nbsp;and&nbsp;the&nbsp;current&nbsp;<br>
+entry.&nbsp;Can&nbsp;be&nbsp;picked&nbsp;and&nbsp;un-pickled&nbsp;to<br>
+achieve&nbsp;persistence&nbsp;of&nbsp;context.<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="Context-__init__"><strong>__init__</strong></a>(self, http<font color="#909090">=None</font>)</dt></dl>
+
+<dl><dt><a name="Context-collpop"><strong>collpop</strong></a>(self, uri)</dt></dl>
+
+<dl><dt><a name="Context-collpush"><strong>collpush</strong></a>(self, uri)</dt></dl>
+
+<dl><dt><a name="Context-restore"><strong>restore</strong></a>(self, service_type, collection_type, entry_type)</dt><dd><tt>Restore&nbsp;the&nbsp;state&nbsp;from&nbsp;a&nbsp;<a href="#Context">Context</a>.&nbsp;The&nbsp;types&nbsp;of&nbsp;the&nbsp;objects<br>
+to&nbsp;be&nbsp;instantiate&nbsp;for&nbsp;the&nbsp;service,&nbsp;collection&nbsp;and&nbsp;entry&nbsp;<br>
+are&nbsp;passed&nbsp;in.&nbsp;If&nbsp;no&nbsp;URI&nbsp;is&nbsp;set&nbsp;for&nbsp;a&nbsp;specific&nbsp;level&nbsp;<br>
+then&nbsp;None&nbsp;is&nbsp;returned&nbsp;for&nbsp;that&nbsp;instance.</tt></dd></dl>
+
+<hr>
+Properties defined here:<br>
+<dl><dt><strong>collection</strong></dt>
+<dd><tt>The&nbsp;URI&nbsp;of&nbsp;the&nbsp;collection.&nbsp;None&nbsp;if&nbsp;not&nbsp;set&nbsp;yet.</tt></dd>
+<dd><dl><dt><a name="-<em>get</em>"><strong><em>get</em></strong></a> = _get_collection(self)</dt></dl>
+</dd>
+<dd><dl><dt><a name="-<em>set</em>"><strong><em>set</em></strong></a> = _set_collection(self, collection)</dt></dl>
+</dd>
+</dl>
+<dl><dt><strong>entry</strong></dt>
+<dd><tt>The&nbsp;URI&nbsp;of&nbsp;the&nbsp;entry.&nbsp;None&nbsp;if&nbsp;not&nbsp;set&nbsp;yet.</tt></dd>
+<dd><dl><dt><a name="-<em>get</em>"><strong><em>get</em></strong></a> = _get_entry(self)</dt></dl>
+</dd>
+<dd><dl><dt><a name="-<em>set</em>"><strong><em>set</em></strong></a> = _set_entry(self, entry)</dt></dl>
+</dd>
+</dl>
+<dl><dt><strong>service</strong></dt>
+<dd><tt>The&nbsp;URI&nbsp;of&nbsp;the&nbsp;Service&nbsp;Document.&nbsp;None&nbsp;if&nbsp;not&nbsp;set&nbsp;yet.</tt></dd>
+<dd><dl><dt><a name="-<em>get</em>"><strong><em>get</em></strong></a> = _get_service(self)</dt></dl>
+</dd>
+<dd><dl><dt><a name="-<em>set</em>"><strong><em>set</em></strong></a> = _set_service(self, service)</dt></dl>
+</dd>
+</dl>
+<hr>
+Data and other attributes defined here:<br>
+<dl><dt><strong>__dict__</strong> = &lt;dictproxy object&gt;<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dl>
+
+<dl><dt><strong>__weakref__</strong> = &lt;attribute '__weakref__' of 'Context' objects&gt;<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;(if&nbsp;defined)</tt></dl>
+
+</td></tr></table></td></tr></table>
+</body></html>
