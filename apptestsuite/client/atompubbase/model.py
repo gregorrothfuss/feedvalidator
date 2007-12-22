@@ -48,6 +48,21 @@ Here is an example of how the classes are used together:
     entry = Entry(entry_edit_uri)
 
 """
+import events
+from mimeparse import mimeparse
+import urlparse
+
+def absolutize(baseuri, uri):
+    """
+    Given a baseuri, return the absolute
+    version of the given uri. Works whether
+    uri is relative or absolute.
+    """
+    (scheme, authority, path, query, fragment) = urlparse.urlsplit(uri)
+    if not authority:
+        uri = urlparse.urljoin(baseuri, uri)
+    return uri
+
 
 class Context(object):
     """
@@ -62,9 +77,12 @@ class Context(object):
     _http = None
     _collection_stack = []
 
-    def __init__(self, http = None):
+    def __init__(self, http = None, service=None, collection=None, entry=None):
         self._collection_stack = []
         self.http = http
+        self._service = service
+        self._collection = collection
+        self._entry = entry
 
     def _get_service(self):
         return self._service
@@ -114,4 +132,47 @@ class Context(object):
 
     def collpop(self):
         self._collection, self._entry = self._collection_stack.pop()
- 
+
+
+APP = "http://www.w3.org/2007/app"
+APP_COLL = "{%s}collection" % APP
+APP_MEMBER_TYPE = "{%s}accept" % APP
+import copy
+try:
+    from xml.etree.ElementTree import fromstring, tostring
+except:
+    from elementtree.ElementTree import fromstring, tostring
+
+
+
+class Service(object):
+    def __init__(self, context_or_uri):
+        self.context = isinstance(context_or_uri, Context) and context_or_uri or Context(service=context_or_uri) 
+        self.representation = None
+
+    def context(self):
+        return self.context
+
+    def get(self, headers=None, body=None):
+        headers, body = self.context.http.request(self.context.service, headers=headers)
+        if headers.status == 200:
+            self.representation = body
+        return (headers, body)
+
+    def iter_match(self, mimerange):
+        if not self.representation:
+            headers, body = self.get()
+        service_tree = fromstring(body)
+        for coll in service_tree.findall(".//" + APP_COLL):
+            coll_type = [t for t in coll.findall(APP_MEMBER_TYPE) if mimeparse.best_match([t.text], mimerange)] 
+            if coll_type:
+                context = copy.copy(self.context)
+                context.collection = absolutize(self.context.service, coll.get('href')) 
+                yield context
+
+    def iter(self):
+        return self.iter_match("*/*")
+
+
+events.add_event_handlers(Service)
+

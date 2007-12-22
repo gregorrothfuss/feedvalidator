@@ -73,6 +73,7 @@ These are all valid filters:
 import sys
 
 PREPOST = set(["PRE", "POST"])
+WRAPPABLE = set(["get", "put", "delete", "create"])
 
 class Events(object):
     def __init__(self):
@@ -120,10 +121,11 @@ def _wrap(method, methodname):
     Create a closure around the given method that calls into
     the eventing system.
     """
-    def wrapped(self, headers, body):
+    def wrapped(self, headers=None, body=None):
         events.trigger("PRE", methodname, self, headers, body)
-        method(self, headers, body)
+        (headers, body) = method(self, headers, body)
         events.trigger("POST", methodname, self, headers, body)
+        return (headers, body)
     return wrapped
 
 def add_event_handlers(theclass):
@@ -133,7 +135,8 @@ def add_event_handlers(theclass):
     """
     for methodname in dir(theclass):
         method = getattr(theclass, methodname)
-        if callable(method) and not methodname.startswith("_"):
+        methodprefix = methodname.split("_")[0]
+        if methodprefix in WRAPPABLE and callable(method) and not methodname.startswith("_"):
             setattr(theclass, methodname, _wrap(method, methodname))
 
 def register_callback(filter, cb):

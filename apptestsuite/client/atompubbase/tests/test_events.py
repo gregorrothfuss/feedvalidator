@@ -3,15 +3,15 @@ import unittest
 
 class Entry(object):
     def get(self, headers, body = None):
-        pass
+        return ({}, "foo") 
     
     def put_media(self, headers, body = None):
-        pass
+        return ({'status': '200'}, "bar") 
 
 
 class Service(object):
     def get(self, headers, body = None):
-        pass
+        return ({'status': '200'}, "baz") 
 
 
 add_event_handlers(Entry)
@@ -24,6 +24,10 @@ class Test(unittest.TestCase):
         self.pre_headers = {} 
         self.pre_body = "" 
         self.pre_attribs = set() 
+        self.post_called = False 
+        self.post_headers = {} 
+        self.post_body = "" 
+        self.post_attribs = set()
         self.count = 0
         clear()
 
@@ -35,6 +39,12 @@ class Test(unittest.TestCase):
         self.pre_headers = headers
         self.pre_body = body
         self.pre_attribs = attribs
+
+    def post_cb(self, headers, body, attribs):
+        self.post_called = True
+        self.post_headers = headers
+        self.post_body = body
+        self.post_attribs = attribs
 
     def inc_cb(self, headers, body, attribs):
         self.count += 1
@@ -48,7 +58,7 @@ class Test(unittest.TestCase):
         Entry().get({}, "")
         self.assertTrue(self.any_called)
 
-    def test_single_axis(self):
+    def test_pre(self):
         """Confirm that data is passed through to the callback"""
         register_callback("PRE", self.pre_cb)
         Entry().get({"status": "200"}, "<feed/>")
@@ -57,6 +67,18 @@ class Test(unittest.TestCase):
         self.assertEqual(self.pre_body, "<feed/>")
         self.assertTrue("PRE" in self.pre_attribs)
         self.assertTrue("ANY" not in self.pre_attribs)
+
+    def test_post(self):
+        """Confirm that data is passed through to the callback"""
+        register_callback("POST", self.post_cb)
+        headers, body = Entry().put_media({"content-length": "7"}, "<feed/>")
+        self.assertTrue(self.post_called)
+        self.assertEqual(self.post_headers["status"], "200")
+        self.assertEqual(headers["status"], "200")
+        self.assertEqual(self.post_body, "bar")
+        self.assertEqual(body, "bar")
+        self.assertTrue("POST" in self.post_attribs)
+        self.assertTrue("ANY" not in self.post_attribs)
 
     def test_multi_axis_1(self):
         """Test along multiple axes at the same time."""
