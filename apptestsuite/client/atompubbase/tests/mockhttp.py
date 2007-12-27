@@ -3,7 +3,7 @@ import httplib2
 from email import message_from_string, message_from_file
 import os
 
-HTTP_SRC_DIR = "./tests/model/"
+HTTP_SRC_DIR = "./tests/"
 
 class MockHttp:
     """
@@ -15,7 +15,7 @@ class MockHttp:
 
     def request(self, uri, method="GET", body=None, headers=None, redirections=5):
         path = urlparse.urlparse(uri)[2]
-        fname = os.path.join(HTTP_SRC_DIR, path[1:])
+        fname = os.path.join(HTTP_SRC_DIR, method, path[1:])
         if os.path.exists(fname):
             f = file(fname, "r")
             response = message_from_file(f)

@@ -227,6 +227,19 @@ class Collection(object):
         headers, body = self.context.http.request(self.context.collection, method="POST", headers=headers)
         return (headers, body)
 
+    def entry_create(self, headers=None, body=None):
+        """
+        Convenience method that returns an Entry object
+        if the create has succeeded, or None if it fails.
+        """
+        headers, body = self.context.http.request(self.context.collection, method="POST", headers=headers)
+        if headers.status == 201 and 'location' in headers:
+            context = copy.copy(self.context)
+            context.entry = headers['location']
+            return context
+        else:
+            return None
+
     def iter(self):
         self.get()
         while True:
