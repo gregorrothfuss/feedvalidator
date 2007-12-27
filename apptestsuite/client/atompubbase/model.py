@@ -262,6 +262,14 @@ class Entry(object):
         self.etree = None
         self.edit_media = None
 
+    def clear(self):
+        self.representation = None
+        self.etree = None
+        self.edit_media = None
+
+    def etree(self):
+        return self.etree
+
     def context(self):
         return self.context
 
@@ -273,24 +281,36 @@ class Entry(object):
         return (headers, body)
 
     def has_media(self):
-        if not self.represenatation:
+        if not self.representation:
             self.get()
         return self.edit_media != None
 
     def get_media(self, headers=None, body=None):
+        if not self.representation:
+            self.get()
         headers, body = self.context.http.request(self.edit_media, headers=headers)
         return (headers, body)
 
     def put(self, headers=None, body=None):
+        if not self.representation:
+            self.get()
         headers, body = self.context.http.request(self.context.entry, headers=headers, method="PUT")
+        if headers.status < 300:
+            self.clear()
         return (headers, body)
 
     def put_media(self, headers=None, body=None):
+        if not self.representation:
+            self.get()
         headers, body = self.context.http.request(self.edit_media, headers=headers, method="PUT")
+        if headers.status < 300:
+            self.clear()
         return (headers, body)
 
     def delete(self, headers=None, body=None):
         headers, body = self.context.http.request(self.context.entry, headers=headers, method="DELETE")
+        if headers.status < 300:
+            self.clear()
         return (headers, body)
 
 
