@@ -12,10 +12,9 @@ status: 200
    </author>
    <id>http://bitworking.org/</id>
    <entry>
-     <title>Test</title>
+     <title>Test 2</title>
      <link href="http://bitworking.org/news/42/Test" />
      <link href="42/" rel="edit" />
-     <link href="42/;media" rel="edit-media" />
      <id>http://bitworking.org/news/42/Test</id>
      <updated>2007-04-17T12:27:11.185299-04:00</updated>
      <app:edited>2007-04-17T12:27:11.185299-04:00</app:edited>
@@ -25,11 +24,11 @@ status: 200
          <content type="xhtml">
               <div xmlns="http://www.w3.org/1999/xhtml">Test entry</div>
          </content>
-   </entry><entry>
+   </entry>
+   <entry>
      <title>Test</title>
      <link href="http://bitworking.org/news/41/Test" />
      <link href="41/" rel="edit" />
-     <link href="41/;media" rel="edit-media" />
      <id>http://bitworking.org/news/41/Test</id>
      <updated>2007-04-17T12:26:19.140065-04:00</updated>
      <app:edited>2007-04-17T12:26:19.140065-04:00</app:edited>
@@ -38,221 +37,6 @@ status: 200
      </summary>
          <content type="xhtml">
               <div xmlns="http://www.w3.org/1999/xhtml">Test entry</div>
-         </content>
-   </entry><entry>
-     <title>Test</title>
-     <link href="http://bitworking.org/news/40/Test" />
-     <link href="40/" rel="edit" />
-     <link href="40/;media" rel="edit-media" />
-     <id>http://bitworking.org/news/40/Test</id>
-     <updated>2007-04-17T12:25:36.158483-04:00</updated>
-     <app:edited>2007-04-17T12:25:36.158483-04:00</app:edited>
-     <summary type="xhtml">
-          <div xmlns="http://www.w3.org/1999/xhtml">test</div>
-     </summary>
-         <content type="xhtml">
-              <div xmlns="http://www.w3.org/1999/xhtml">Test entry</div>
-         </content>
-   </entry><entry>
-     <title>Here is a title.</title>
-     <link href="http://bitworking.org/news/39/Here-is-a-title" />
-     <link href="39/" rel="edit" />
-     <link href="39/;media" rel="edit-media" />
-     <id>http://bitworking.org/news/39/Here-is-a-title</id>
-     <updated>2007-04-17T01:08:10.142634-04:00</updated>
-     <app:edited>2007-04-17T01:08:10.142634-04:00</app:edited>
-     <summary type="xhtml">
-          <div xmlns="http://www.w3.org/1999/xhtml">Here is a summary.</div>
-     </summary>
-         <content type="xhtml">
-              <div xmlns="http://www.w3.org/1999/xhtml" />
-         </content>
-   </entry><entry>
-     <title>test post from xml::atom</title>
-     <link href="http://bitworking.org/news/38/test-post-from-xml-atom" />
-     <link href="38/" rel="edit" />
-     <link href="38/;media" rel="edit-media" />
-     <id>http://bitworking.org/news/38/test-post-from-xml-atom</id>
-     <updated>2007-04-16T20:11:01.704944-04:00</updated>
-     <app:edited>2007-04-16T20:11:01.704944-04:00</app:edited>
-     <summary type="xhtml">
-          <div xmlns="http://www.w3.org/1999/xhtml" />
-     </summary>
-         <content type="xhtml">
-              <div xmlns="http://www.w3.org/1999/xhtml">this is a very boring plaintext content segment.</div>
-         </content>
-   </entry><entry>
-     <title>test post from xml::atom</title>
-     <link href="http://bitworking.org/news/37/test-post-from-xml-atom" />
-     <link href="37/" rel="edit" />
-     <link href="37/;media" rel="edit-media" />
-     <id>http://bitworking.org/news/37/test-post-from-xml-atom</id>
-     <updated>2007-04-16T20:07:54.319950-04:00</updated>
-     <app:edited>2007-04-16T20:07:54.319950-04:00</app:edited>
-     <summary type="xhtml">
-          <div xmlns="http://www.w3.org/1999/xhtml" />
-     </summary>
-         <content type="xhtml">
-              <div xmlns="http://www.w3.org/1999/xhtml">this is a very boring plaintext content segment.</div>
-         </content>
-   </entry><entry>
-     <title>test post from xml::atom</title>
-     <link href="http://bitworking.org/news/36/test-post-from-xml-atom" />
-     <link href="36/" rel="edit" />
-     <link href="36/;media" rel="edit-media" />
-     <id>http://bitworking.org/news/36/test-post-from-xml-atom</id>
-     <updated>2007-04-16T20:07:21.361146-04:00</updated>
-     <app:edited>2007-04-16T20:07:21.361146-04:00</app:edited>
-     <summary type="xhtml">
-          <div xmlns="http://www.w3.org/1999/xhtml" />
-     </summary>
-         <content type="xhtml">
-              <div xmlns="http://www.w3.org/1999/xhtml">this is a very boring plaintext content segment.</div>
-         </content>
-   </entry><entry>
-     <title>test post from xml::atom</title>
-     <link href="http://bitworking.org/news/35/test-post-from-xml-atom" />
-     <link href="35/" rel="edit" />
-     <link href="35/;media" rel="edit-media" />
-     <id>http://bitworking.org/news/35/test-post-from-xml-atom</id>
-     <updated>2007-04-16T20:06:52.238136-04:00</updated>
-     <app:edited>2007-04-16T20:06:52.238136-04:00</app:edited>
-     <summary type="xhtml">
-          <div xmlns="http://www.w3.org/1999/xhtml" />
-     </summary>
-         <content type="xhtml">
-              <div xmlns="http://www.w3.org/1999/xhtml">this is a very boring plaintext content segment.</div>
-         </content>
-   </entry><entry>
-     <title>test post from xml::atom</title>
-     <link href="http://bitworking.org/news/34/test-post-from-xml-atom" />
-     <link href="34/" rel="edit" />
-     <link href="34/;media" rel="edit-media" />
-     <id>http://bitworking.org/news/34/test-post-from-xml-atom</id>
-     <updated>2007-04-16T20:05:36.026135-04:00</updated>
-     <app:edited>2007-04-16T20:05:36.026135-04:00</app:edited>
-     <summary type="xhtml">
-          <div xmlns="http://www.w3.org/1999/xhtml" />
-     </summary>
-         <content type="xhtml">
-              <div xmlns="http://www.w3.org/1999/xhtml">this is a very boring plaintext content segment.</div>
-         </content>
-   </entry><entry>
-     <title>test post from xml::atom</title>
-     <link href="http://bitworking.org/news/28/test-post-from-xml-atom" />
-     <link href="28/" rel="edit" />
-     <link href="28/;media" rel="edit-media" />
-     <id>http://bitworking.org/news/28/test-post-from-xml-atom</id>
-     <updated>2007-04-16T19:27:06.947257-04:00</updated>
-     <app:edited>2007-04-16T19:27:06.947257-04:00</app:edited>
-     <summary type="xhtml">
-          <div xmlns="http://www.w3.org/1999/xhtml" />
-     </summary>
-         <content type="xhtml">
-              <div xmlns="http://www.w3.org/1999/xhtml">this is a very boring plaintext content segment.</div>
-         </content>
-   </entry><entry>
-     <title>Posted by GData Python lib</title>
-     <link href="http://bitworking.org/news/27/Posted-by-GData-Python-lib" />
-     <link href="27/" rel="edit" />
-     <link href="27/;media" rel="edit-media" />
-     <id>http://bitworking.org/news/27/Posted-by-GData-Python-lib</id>
-     <updated>2007-04-16T19:25:05.739546-04:00</updated>
-     <app:edited>2007-04-16T19:25:05.739546-04:00</app:edited>
-     <summary type="xhtml">
-          <div xmlns="http://www.w3.org/1999/xhtml" />
-     </summary>
-         <content type="xhtml">
-              <div xmlns="http://www.w3.org/1999/xhtml">Happy interoping everyone</div>
-         </content>
-   </entry><entry>
-     <title>test post from xml::atom</title>
-     <link href="http://bitworking.org/news/26/test-post-from-xml-atom" />
-     <link href="26/" rel="edit" />
-     <link href="26/;media" rel="edit-media" />
-     <id>http://bitworking.org/news/26/test-post-from-xml-atom</id>
-     <updated>2007-04-16T19:22:51.014287-04:00</updated>
-     <app:edited>2007-04-16T19:22:51.014287-04:00</app:edited>
-     <summary type="xhtml">
-          <div xmlns="http://www.w3.org/1999/xhtml" />
-     </summary>
-         <content type="xhtml">
-              <div xmlns="http://www.w3.org/1999/xhtml">this is a very boring plaintext content segment.</div>
-         </content>
-   </entry><entry>
-     <title>Test post from Nukular.</title>
-     <link href="http://bitworking.org/news/24/Test-post-from-Nukular" />
-     <link href="24/" rel="edit" />
-     <link href="24/;media" rel="edit-media" />
-     <id>http://bitworking.org/news/24/Test-post-from-Nukular</id>
-     <updated>2007-04-16T18:51:54.160293-04:00</updated>
-     <app:edited>2007-04-16T18:51:54.160293-04:00</app:edited>
-     <summary type="xhtml">
-          <div xmlns="http://www.w3.org/1999/xhtml" />
-     </summary>
-         <content type="xhtml">
-              <div xmlns="http://www.w3.org/1999/xhtml"><div>
-<div>
-        This is a test post. This post has been edited by Nukular. Again.
-      </div>
-</div></div>
-         </content>
-   </entry><entry>
-     <title>Test post.</title>
-     <link href="http://bitworking.org/news/19/Test-post" />
-     <link href="19/" rel="edit" />
-     <link href="19/;media" rel="edit-media" />
-     <id>http://bitworking.org/news/19/Test-post</id>
-     <updated>2007-04-15T09:26:25.964548-04:00</updated>
-     <app:edited>2007-04-15T09:26:25.964548-04:00</app:edited>
-     <summary type="xhtml">
-          <div xmlns="http://www.w3.org/1999/xhtml" />
-     </summary>
-         <content type="xhtml">
-              <div xmlns="http://www.w3.org/1999/xhtml">This is a test post.</div>
-         </content>
-   </entry><entry>
-     <title>From the  (サル)</title>
-     <link href="http://bitworking.org/news/3/ape-35174" />
-     <link href="3/" rel="edit" />
-     <link href="3/;media" rel="edit-media" />
-     <id>http://bitworking.org/news/3/ape-35174</id>
-     <updated>2007-04-13T11:24:13.191432-04:00</updated>
-     <app:edited>2007-04-13T11:24:13.191432-04:00</app:edited>
-     <summary type="xhtml">
-          <div xmlns="http://www.w3.org/1999/xhtml">Summary from the &lt;APE> at 2007-04-13T08:24:25-07:00</div>
-     </summary>
-         <content type="xhtml">
-              <div xmlns="http://www.w3.org/1999/xhtml"><p>A test post from the &lt;APE> at 2007-04-13T08:24:25-07:00</p><p>If you see this in an entry, it's probably a left-over from an unsuccessful Ape run; feel free to delete it.</p></div>
-         </content>
-   </entry><entry>
-     <title>From the  (サル)</title>
-     <link href="http://bitworking.org/news/2/ape-92079" />
-     <link href="2/" rel="edit" />
-     <link href="2/;media" rel="edit-media" />
-     <id>http://bitworking.org/news/2/ape-92079</id>
-     <updated>2007-04-13T11:20:33.618290-04:00</updated>
-     <app:edited>2007-04-13T11:20:33.618290-04:00</app:edited>
-     <summary type="xhtml">
-          <div xmlns="http://www.w3.org/1999/xhtml">Summary from the &lt;APE> at 2007-04-13T08:20:45-07:00</div>
-     </summary>
-         <content type="xhtml">
-              <div xmlns="http://www.w3.org/1999/xhtml"><p>A test post from the &lt;APE> at 2007-04-13T08:20:45-07:00</p><p>If you see this in an entry, it's probably a left-over from an unsuccessful Ape run; feel free to delete it.</p></div>
-         </content>
-   </entry><entry>
-     <title>test post</title>
-     <link href="http://bitworking.org/news/1/test-post" />
-     <link href="1/" rel="edit" />
-     <link href="1/;media" rel="edit-media" />
-     <id>http://bitworking.org/news/1/test-post</id>
-     <updated>2007-04-13T10:41:48.791512-04:00</updated>
-     <app:edited>2007-04-13T10:41:48.791512-04:00</app:edited>
-     <summary type="xhtml">
-          <div xmlns="http://www.w3.org/1999/xhtml">summary</div>
-     </summary>
-         <content type="xhtml">
-              <div xmlns="http://www.w3.org/1999/xhtml">content
-</div>
          </content>
    </entry>
 </feed>

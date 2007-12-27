@@ -51,6 +51,21 @@ Here is an example of how the classes are used together:
 import events
 from mimeparse import mimeparse
 import urlparse
+import httplib2
+import copy
+try:
+    from xml.etree.ElementTree import fromstring, tostring
+except:
+    from elementtree.ElementTree import fromstring, tostring
+
+ATOM = "http://www.w3.org/2005/Atom"
+ATOM_ENTRY = "{%s}entry" % ATOM
+LINK = "{%s}link" % ATOM
+ATOM_TITLE= "{%s}title" % ATOM
+APP = "http://www.w3.org/2007/app"
+APP_COLL = "{%s}collection" % APP
+APP_MEMBER_TYPE = "{%s}accept" % APP
+
 
 def absolutize(baseuri, uri):
     """
@@ -79,7 +94,10 @@ class Context(object):
 
     def __init__(self, http = None, service=None, collection=None, entry=None):
         self._collection_stack = []
-        self.http = http
+        if http:
+            self.http = http
+        else:
+            self.http = httplib2.Http()
         self._service = service
         self._collection = collection
         self._entry = entry
@@ -134,17 +152,6 @@ class Context(object):
         self._collection, self._entry = self._collection_stack.pop()
 
 
-APP = "http://www.w3.org/2007/app"
-APP_COLL = "{%s}collection" % APP
-APP_MEMBER_TYPE = "{%s}accept" % APP
-import copy
-try:
-    from xml.etree.ElementTree import fromstring, tostring
-except:
-    from elementtree.ElementTree import fromstring, tostring
-
-
-
 class Service(object):
     def __init__(self, context_or_uri):
         self.context = isinstance(context_or_uri, Context) and context_or_uri or Context(service=context_or_uri) 
@@ -175,4 +182,102 @@ class Service(object):
 
 
 events.add_event_handlers(Service)
+
+def link_value(etree, xpath, relation):
+    xpath = xpath + "/" + LINK 
+    for link in etree.findall(xpath):
+        if link.get('rel') == relation:
+            return link.get('href')
+    return None
+
+class Collection(object):
+    def __init__(self, context_or_uri):
+        self.context = isinstance(context_or_uri, Context) and context_or_uri or Context(service=context_or_uri) 
+        self.representation = None
+        self.etree = None
+        self.next = None
+
+    def context(self):
+        return self.context
+
+    def _record_next(self, base_uri, headers, body):
+        if headers.status == 200:
+            self.representation = body
+            self.etree = fromstring(body)
+            self.next = link_value(self.etree, ".", "next")
+            if self.next:
+                self.next = absolutize(base_uri, self.next) 
+        else:
+            self.representation = self.etree = selfnext = None
+ 
+    def get(self, headers=None, body=None):
+        headers, body = self.context.http.request(self.context.collection, headers=headers)
+        self._record_next(self.context.collection, headers, body)
+        return (headers, body)
+
+    def has_next(self):
+        return self.next != None
+
+    def get_next(self, headers=None, body=None):
+        headers, body = self.context.http.request(self.next, headers=headers)
+        self._record_next(self.next, headers, body)
+        return (headers, body)
+
+    def create(self, headers=None, body=None):
+        headers, body = self.context.http.request(self.context.collection, method="POST", headers=headers)
+        return (headers, body)
+
+    def iter(self):
+        self.get()
+        while True:
+            for entry in self.etree.findall(ATOM_ENTRY):
+                context = copy.copy(self.context)
+                edit_link = link_value(entry, ".", "edit")
+                context.entry = absolutize(self.context.collection, edit_link) 
+                yield context
+            if self.has_next():
+                self.get_next()
+            else:
+                break
+
+events.add_event_handlers(Collection)
+
+class Entry(object):
+    def __init__(self, context_or_uri):
+        self.context = isinstance(context_or_uri, Context) and context_or_uri or Context(entry=context_or_uri) 
+        self.representation = None
+        self.etree = None
+        self.edit_media = None
+
+    def context(self):
+        return self.context
+
+    def get(self, headers=None, body=None):
+        headers, body = self.context.http.request(self.context.entry, headers=headers)
+        self.representation = body
+        self.etree = fromstring(body)
+        self.edit_media = link_value(self.etree, ".", "edit-media")
+        return (headers, body)
+
+    def has_media(self):
+        if not self.represenatation:
+            self.get()
+        return self.edit_media != None
+
+    def get_media(self, headers=None, body=None):
+        headers, body = self.context.http.request(self.edit_media, headers=headers)
+        return (headers, body)
+
+    def put(self, headers=None, body=None):
+        headers, body = self.context.http.request(self.context.entry, headers=headers, method="PUT")
+        return (headers, body)
+
+    def put_media(self, headers=None, body=None):
+        headers, body = self.context.http.request(self.edit_media, headers=headers, method="PUT")
+        return (headers, body)
+
+    def delete(self, headers=None, body=None):
+        headers, body = self.context.http.request(self.context.entry, headers=headers, method="DELETE")
+        return (headers, body)
+
 
