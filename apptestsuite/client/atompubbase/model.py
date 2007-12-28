@@ -59,10 +59,12 @@ except:
     from elementtree.ElementTree import fromstring, tostring
 
 ATOM = "http://www.w3.org/2005/Atom"
+XHTML = "http://www.w3.org/1999/xhtml"
+APP = "http://www.w3.org/2007/app"
+
 ATOM_ENTRY = "{%s}entry" % ATOM
 LINK = "{%s}link" % ATOM
 ATOM_TITLE= "{%s}title" % ATOM
-APP = "http://www.w3.org/2007/app"
 APP_COLL = "{%s}collection" % APP
 APP_MEMBER_TYPE = "{%s}accept" % APP
 
@@ -211,7 +213,7 @@ class Collection(object):
             self.representation = self.etree = selfnext = None
  
     def get(self, headers=None, body=None):
-        headers, body = self.context.http.request(self.context.collection, headers=headers)
+        headers, body = self.context.http.request(self.context.collection, headers=headers, body=body)
         self._record_next(self.context.collection, headers, body)
         return (headers, body)
 
@@ -219,12 +221,12 @@ class Collection(object):
         return self.next != None
 
     def get_next(self, headers=None, body=None):
-        headers, body = self.context.http.request(self.next, headers=headers)
+        headers, body = self.context.http.request(self.next, headers=headers, body=body)
         self._record_next(self.next, headers, body)
         return (headers, body)
 
     def create(self, headers=None, body=None):
-        headers, body = self.context.http.request(self.context.collection, method="POST", headers=headers)
+        headers, body = self.context.http.request(self.context.collection, method="POST", headers=headers, body=body)
         return (headers, body)
 
     def entry_create(self, headers=None, body=None):
@@ -232,7 +234,7 @@ class Collection(object):
         Convenience method that returns an Entry object
         if the create has succeeded, or None if it fails.
         """
-        headers, body = self.context.http.request(self.context.collection, method="POST", headers=headers)
+        headers, body = self.context.http.request(self.context.collection, method="POST", headers=headers, body=body)
         if headers.status == 201 and 'location' in headers:
             context = copy.copy(self.context)
             context.entry = headers['location']
@@ -259,16 +261,18 @@ class Entry(object):
     def __init__(self, context_or_uri):
         self.context = isinstance(context_or_uri, Context) and context_or_uri or Context(entry=context_or_uri) 
         self.representation = None
-        self.etree = None
+        self._etree = None
         self.edit_media = None
 
     def clear(self):
         self.representation = None
-        self.etree = None
+        self._etree = None
         self.edit_media = None
 
     def etree(self):
-        return self.etree
+        if not self.representation:
+            self.get()
+        return self._etree
 
     def context(self):
         return self.context
@@ -276,8 +280,8 @@ class Entry(object):
     def get(self, headers=None, body=None):
         headers, body = self.context.http.request(self.context.entry, headers=headers)
         self.representation = body
-        self.etree = fromstring(body)
-        self.edit_media = link_value(self.etree, ".", "edit-media")
+        self._etree = fromstring(body)
+        self.edit_media = link_value(self._etree, ".", "edit-media")
         return (headers, body)
 
     def has_media(self):
@@ -292,9 +296,15 @@ class Entry(object):
         return (headers, body)
 
     def put(self, headers=None, body=None):
+        if headers == None:
+            headers = {}
+        if 'content-type' not in headers:
+            headers['content-type'] = 'application/atom+xml;type=entry'
         if not self.representation:
             self.get()
-        headers, body = self.context.http.request(self.context.entry, headers=headers, method="PUT")
+        if body == None:
+            body = tostring(self._etree)
+        headers, body = self.context.http.request(self.context.entry, headers=headers, method="PUT", body=body)
         if headers.status < 300:
             self.clear()
         return (headers, body)
@@ -302,7 +312,7 @@ class Entry(object):
     def put_media(self, headers=None, body=None):
         if not self.representation:
             self.get()
-        headers, body = self.context.http.request(self.edit_media, headers=headers, method="PUT")
+        headers, body = self.context.http.request(self.edit_media, headers=headers, method="PUT", body=body)
         if headers.status < 300:
             self.clear()
         return (headers, body)
