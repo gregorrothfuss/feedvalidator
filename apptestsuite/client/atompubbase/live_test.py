@@ -1,7 +1,8 @@
-from model import Context, Service, Collection, Entry, ATOM, XHTML
+from model import init_event_handlers, Context, Service, Collection, Entry, ATOM, XHTML
 from httplib2 import Http
 import unittest
 import feedparser
+import events
 
 try:
     from xml.etree.ElementTree import fromstring, tostring
@@ -15,6 +16,15 @@ class Test(unittest.TestCase):
         c = Context(http = Http(".cache"), service = "http://bitworking.org/projects/apptestsite/app.cgi/service/;service_document")
         s = Service(c)
         collection = Collection(s.iter_match("application/atom+xml;type=entry").next())
+
+        init_event_handlers()
+        class EventListener(object):
+            events = []
+            def callback(self, headers, body, attributes):
+                self.events.append(attributes)
+
+        listener = EventListener()
+        events.register_callback("ANY", listener.callback)
 
         CONTENT = """<entry xmlns="http://www.w3.org/2005/Atom">
           <title>Test Post From AtomPubBase Live Test</title>
@@ -36,6 +46,8 @@ class Test(unittest.TestCase):
         self.assertEqual(200, headers.status)
         headers, body = entry.delete()
         self.assertEqual(200, headers.status)
+
+        print listener.events 
 
 
 unittest.main()

@@ -9,7 +9,7 @@ are several axes that can be used to filter on:
 
 Time          PRE|POST
 Method Name   GET|PUT|DELETE|CREATE
-Media         MEDIA    
+Media         MEDIA|NEXT
 Class         SERVICE|COLLECTION|ENTRY
 
 Note that Class is really driven by which

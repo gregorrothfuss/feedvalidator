@@ -14,6 +14,7 @@ if sys.path[0]:
 
 # find all of the planet test modules
 modules = map(fullmodname, glob.glob(os.path.join('tests', 'test_*.py')))
+print "Running the tests found in the following modules:"
 print modules
 
 # load all of the tests into a suite

@@ -58,6 +58,8 @@ try:
 except:
     from elementtree.ElementTree import fromstring, tostring
 
+from xml.parsers.expat import ExpatError
+
 ATOM = "http://www.w3.org/2005/Atom"
 XHTML = "http://www.w3.org/1999/xhtml"
 APP = "http://www.w3.org/2007/app"
@@ -79,6 +81,18 @@ def absolutize(baseuri, uri):
     if not authority:
         uri = urlparse.urljoin(baseuri, uri)
     return uri
+
+def link_value(etree, xpath, relation):
+    """
+    Given and elementtree element 'etree', find all link
+    elements under the given xpath and return the @href
+    of the link of the given relation.
+    """
+    xpath = xpath + "/" + LINK 
+    for link in etree.findall(xpath):
+        if link.get('rel') == relation:
+            return link.get('href')
+    return None
 
 
 class Context(object):
@@ -136,7 +150,7 @@ class Context(object):
     def restore(self, service_type, collection_type, entry_type):
         """
         Restore the state from a Context. The types of the objects
-        to be instantiate for the service, collection and entry 
+        to be instantiated for the service, collection and entry 
         are passed in. If no URI is set for a specific level 
         then None is returned for that instance.
         """
@@ -146,33 +160,73 @@ class Context(object):
         return (service, collection, entry)
 
     def collpush(self, uri):
+        """
+        The collpush and collpop members are similar to the
+        command line 'pushd' and 'popd' commands. They let you
+        change to a different collection and then pop back
+        to the older collection when you are done.
+        """
         self._collection_stack.append((self._collection, self._entry))
         self._collection = uri
         self._entry = None 
 
     def collpop(self):
+        """
+        See collpush.
+        """
         self._collection, self._entry = self._collection_stack.pop()
 
 
 class Service(object):
+    """
+    An Atom Publishing Protocol Service Document.
+    """
     def __init__(self, context_or_uri):
         self.context = isinstance(context_or_uri, Context) and context_or_uri or Context(service=context_or_uri) 
         self.representation = None
+        self._etree = None
 
     def context(self):
+        """
+        Get the curent Context associated with this Service Document.
+        """
         return self.context
 
     def get(self, headers=None, body=None):
+        """
+        Retrieve the current Service Document from the server.
+
+        Returns a tuple of the HTTP response headers
+        and the body.
+        """
         headers, body = self.context.http.request(self.context.service, headers=headers)
         if headers.status == 200:
             self.representation = body
+            try:
+                self._etree = fromstring(body)
+            except ExpatError:
+                self._etree = None
         return (headers, body)
 
+    def etree(self):
+        """
+        Returns an ElementTree representation of the Service Document.
+        """
+        if not self._etree:
+            self.get()
+        return self._etree
+
     def iter_match(self, mimerange):
+        """
+        Returns a generator that iterates over 
+        the collections in the service document 
+        that accept the given mimerange. The mimerange
+        can be a specific mimetype - "image/png" - or 
+        a range - "image/*". 
+        """
         if not self.representation:
             headers, body = self.get()
-        service_tree = fromstring(body)
-        for coll in service_tree.findall(".//" + APP_COLL):
+        for coll in self._etree.findall(".//" + APP_COLL):
             coll_type = [t for t in coll.findall(APP_MEMBER_TYPE) if mimeparse.best_match([t.text], mimerange)] 
             if coll_type:
                 context = copy.copy(self.context)
@@ -180,52 +234,84 @@ class Service(object):
                 yield context
 
     def iter(self):
+        """
+        Returns a generator that iterates over all
+        the collections in the service document.
+        """
         return self.iter_match("*/*")
 
 
-events.add_event_handlers(Service)
-
-def link_value(etree, xpath, relation):
-    xpath = xpath + "/" + LINK 
-    for link in etree.findall(xpath):
-        if link.get('rel') == relation:
-            return link.get('href')
-    return None
 
 class Collection(object):
     def __init__(self, context_or_uri):
+        """
+        Create a Collection from either the URI of the
+        collection, or from a Context object.
+        """
         self.context = isinstance(context_or_uri, Context) and context_or_uri or Context(service=context_or_uri) 
         self.representation = None
-        self.etree = None
+        self._etree = None
         self.next = None
 
     def context(self):
+        """
+        The Context associated with this Collection.
+        """
         return self.context
 
     def _record_next(self, base_uri, headers, body):
         if headers.status == 200:
             self.representation = body
-            self.etree = fromstring(body)
-            self.next = link_value(self.etree, ".", "next")
+            self._etree = fromstring(body)
+            self.next = link_value(self._etree, ".", "next")
             if self.next:
                 self.next = absolutize(base_uri, self.next) 
         else:
-            self.representation = self.etree = selfnext = None
- 
+            self.representation = self._etree = selfnext = None
+
     def get(self, headers=None, body=None):
+        """
+        Retrieves the first feed in a paged series of 
+        collection documents.
+
+        Returns a tuple of the HTTP response headers
+        and the body.
+        """
         headers, body = self.context.http.request(self.context.collection, headers=headers, body=body)
         self._record_next(self.context.collection, headers, body)
         return (headers, body)
 
     def has_next(self):
+        """
+        Collections can be paged across many
+        Atom feeds. Returns True if there is a 
+        'next' feed we can get.
+        """
         return self.next != None
 
     def get_next(self, headers=None, body=None):
+        """
+        Collections can be paged across many
+        Atom feeds. Get's the next feed in the
+        paging.
+
+        Returns a tuple of the HTTP response headers
+        and the body.
+        """
         headers, body = self.context.http.request(self.next, headers=headers, body=body)
         self._record_next(self.next, headers, body)
         return (headers, body)
 
     def create(self, headers=None, body=None):
+        """
+        Create a new member in the collection.
+        Can be used to create members of regular
+        and media collections. Be sure to set the 
+        'content-type' header appropriately.
+
+        Returns a tuple of the HTTP response headers
+        and the body.
+        """
         headers, body = self.context.http.request(self.context.collection, method="POST", headers=headers, body=body)
         return (headers, body)
 
@@ -243,9 +329,13 @@ class Collection(object):
             return None
 
     def iter(self):
+        """
+        Returns in iterable that produces a Context 
+        object for every Entry in the collection.
+        """
         self.get()
         while True:
-            for entry in self.etree.findall(ATOM_ENTRY):
+            for entry in self._etree.findall(ATOM_ENTRY):
                 context = copy.copy(self.context)
                 edit_link = link_value(entry, ".", "edit")
                 context.entry = absolutize(self.context.collection, edit_link) 
@@ -255,21 +345,27 @@ class Collection(object):
             else:
                 break
 
-events.add_event_handlers(Collection)
 
 class Entry(object):
     def __init__(self, context_or_uri):
+        """
+        Create an Entry from either the URI of the
+        entry edit URI, or from a Context object.
+        """
         self.context = isinstance(context_or_uri, Context) and context_or_uri or Context(entry=context_or_uri) 
         self.representation = None
         self._etree = None
         self.edit_media = None
 
-    def clear(self):
+    def _clear(self):
         self.representation = None
         self._etree = None
         self.edit_media = None
 
     def etree(self):
+        """
+        Returns an ElementTree representation of the Entry.
+        """
         if not self.representation:
             self.get()
         return self._etree
@@ -278,24 +374,46 @@ class Entry(object):
         return self.context
 
     def get(self, headers=None, body=None):
+        """
+        Retrieve the representation for this entry.
+        """
         headers, body = self.context.http.request(self.context.entry, headers=headers)
         self.representation = body
-        self._etree = fromstring(body)
+        try:
+            self._etree = fromstring(body)
+        except ExpatError:
+            self._etree = None
+
+
+
+
         self.edit_media = link_value(self._etree, ".", "edit-media")
         return (headers, body)
 
     def has_media(self):
+        """
+        Returns True if this is a Media Link Entry.
+        """
         if not self.representation:
             self.get()
         return self.edit_media != None
 
     def get_media(self, headers=None, body=None):
+        """
+        If this entry is a Media Link Entry, then retrieve
+        the associated media.
+        """
         if not self.representation:
             self.get()
         headers, body = self.context.http.request(self.edit_media, headers=headers)
         return (headers, body)
 
     def put(self, headers=None, body=None):
+        """
+        Update the entry on the server. If the body to send
+        is not supplied then the internal elementtree element
+        will be serialized and sent to the server.
+        """
         if headers == None:
             headers = {}
         if 'content-type' not in headers:
@@ -306,21 +424,37 @@ class Entry(object):
             body = tostring(self._etree)
         headers, body = self.context.http.request(self.context.entry, headers=headers, method="PUT", body=body)
         if headers.status < 300:
-            self.clear()
+            self._clear()
         return (headers, body)
 
     def put_media(self, headers=None, body=None):
+        """
+        If this entry is a Media Link Entry, then update 
+        the associated media.
+        """
         if not self.representation:
             self.get()
         headers, body = self.context.http.request(self.edit_media, headers=headers, method="PUT", body=body)
         if headers.status < 300:
-            self.clear()
+            self._clear()
         return (headers, body)
 
     def delete(self, headers=None, body=None):
+        """
+        Delete the entry from the server.
+        """
         headers, body = self.context.http.request(self.context.entry, headers=headers, method="DELETE")
         if headers.status < 300:
-            self.clear()
+            self._clear()
         return (headers, body)
 
+
+def init_event_handlers():
+    """
+    Add in hooks to the Service, Collection
+    and Entry classes to enable Events.
+    """
+    events.add_event_handlers(Service)
+    events.add_event_handlers(Collection)
+    events.add_event_handlers(Entry)
 
