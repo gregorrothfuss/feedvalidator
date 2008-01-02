@@ -1,0 +1,232 @@
+#!/bin/env python2.5
+import os
+import sys
+from optparse import OptionParser
+from atompubbase.model import Entry, Collection, Service, Context, APP, ATOM
+from httplib2 import Http
+import pickle
+
+class FileNotFound(Exception): pass
+class InvalidServiceDocument(Exception): pass
+
+class _Session(object):
+    context = Context()
+    username = None
+    password = None
+    authtype = None
+    credentials = None
+    cache = None
+
+
+def _find_session_file(options):
+    """
+    command line options
+    $GDATA_CMD_LINE_SESSION
+    $HOME/.apexer/session
+    """
+    dir = options.session
+    if not dir:
+       dir = os.environ.get("GDATA_CMD_LINE_SESSION")
+    if not dir:
+        home = os.environ.get("HOME")
+        if home:
+            home_dir = os.path.join(home, ".apexer")
+            if not os.path.exists(home_dir):
+                os.mkdir(home_dir, 0700)
+            dir = os.path.join(home, ".apexer", "session")
+    if not dir:
+        raise FileNotFound("Could not locate the session file.")
+    return dir
+
+    
+def _save_session(session, options):
+    session.context.http = None
+    fname = _find_session_file(options)
+    f = file(fname, "w")
+    pickle.dump(session, f)
+    f.close()
+    
+
+def _restore_session(options):
+    fname = _find_session_file(options)
+    f = file(fname, "r")
+    session = pickle.load(f)
+    f.close()
+    session.context.http = Http(session.cache) 
+
+    return session
+ 
+
+def service(args):
+    """service
+
+service: Set the service document to work from.
+usage: service [URI]
+
+  Sets the service document to be the one located at URI.
+
+Valid options:
+  -u  [--username] NAME      : Authentication user name
+  -p  [--password] PASSWORD  : Authentication password
+  -s  [--session] FILE       : File containing the session state
+  -v  [--verbose]            : print extra information
+  -c  [--cache] DIR          : directory to be used for http caching
+  -r  [--raw]                : Output the raw XML returned
+  -i  [--include]            : Output the HTTP response headers 
+
+"""
+    parser = OptionParser()
+    parser.add_option("-u", "--username", dest="username")
+    parser.add_option("-p", "--password", dest="password") 
+    parser.add_option("-s", "--session",  dest="session") 
+    parser.add_option("-c", "--cache",    dest="cache") 
+    parser.add_option("-r", "--raw",      dest="raw",     action="store_true") 
+    parser.add_option("-i", "--include",  dest="include", action="store_true") 
+    (options, args) = parser.parse_args(args)
+    if len(args) != 1:
+        parser.error("Incorrect number of arguments.")
+    
+    session = _Session()
+    session.username = options.username
+    session.password = options.password
+    session.cache = options.cache
+    h = Http(session.cache)
+    session.context = Context(http=h, service=args[0])
+    s = Service(session.context)
+    headers, body = s.get()
+    if headers.status == 200:
+        if s.etree() and "{http://www.w3.org/2007/app}service" == s.etree().tag:
+            _save_session(session, options)
+        else:
+            raise InvalidServiceDocument("Not a valid service document")
+    if options.include:
+        print "\n".join(["%s: %s" % (k, v) for (k,v) in headers.iteritems()])
+    if options.raw:
+        if options.include:
+            print
+        print body
+
+
+def lc(args):
+    """lc
+
+lc: List all the collections  
+usage: lc
+
+   List the collections enumerated in a service document.
+
+Valid options:
+  -s  [--session] FILE       : File containing the session state
+
+"""
+    parser = OptionParser()
+    parser.add_option("-s", "--session",  dest="session") 
+    (options, args) = parser.parse_args(args)
+    if len(args) != 0:
+        parser.error("Incorrect number of arguments.")
+    
+    session = _restore_session(options)
+    service, collection, entry = session.context.restore(Service, Collection, Entry)
+    for index, c in enumerate(service.etree().findall(".//{%s}collection" % APP)):
+        etitle = c.find("{%s}title" % ATOM)
+        if None != etitle:
+            title = etitle.text
+        else:
+            title = "untitled"
+
+        print index, " ", title
+
+# Meta commands -------------------------------------------
+
+def commands(args):
+    """commands
+
+commands: List all sub-commands that atompub knows.
+usage: commands 
+
+"""
+    for name in members:
+        if not name.startswith("_") and callable(members[name]):
+            print members[name].__doc__.splitlines()[0]
+    
+
+def help(args):
+    """help
+
+usage: atompub <subcommand> [options] [args]
+Atompub command-line client, version 0.1.0.
+Type 'atompub help <subcommand>' for help on a specific subcommand.
+
+Most subcommands take URI and/or index arguments.
+
+Available subcommands:
+    service    (s)
+    collection (c)
+    entry      (e)
+    ls
+    lc
+    get
+    put
+    delete
+    create
+
+Session State
+   Session state is search for in the following places
+   in the following order:
+
+   - command line argument
+   - $GDATA_CMD_LINE_SESSION
+   - $HOME/.gdclient/session
+"""
+    try:
+        name = args[0]
+    except:
+        name = "help"
+    if name in members:
+        print members[name].__doc__.split("\n\n", 1)[1]
+    else:
+        print "Atompub -- Command line client for Atom Publishing Protocol servers."
+        print 
+        print "Error: '%s' is not a valid command" % name
+    
+
+members = globals()
+
+if __name__ == "__main__":
+    try:
+        cmd = sys.argv[1]
+    except:
+        cmd = "help"
+    args = sys.argv[2:]
+    if cmd not in members or cmd.startswith("_") or (not callable(members[cmd])):
+        cmd = "help"
+
+    members[cmd](args)
+
+extra = """
+Common Options
+  -u  --username NAME        Authentication user name
+  -p  --password PASSWORD    Authentication password
+  -t  --authtype AUTHTYPE    ClientLogin or AuthSub
+  -c  --cred FILE            File containing the auth name, password and optionally the auth type, on a single line, separated by a space.
+  -r  --raw                  Output the raw XML returned
+  -s  --session FILE         File containing the session state
+
+atomclient service [options] [common options] uri
+  -a  --accept=MIME          Finds the first collection that accepts the given mime type. Wildcards are accepted.
+
+atomclient coll [options] [common options] uri
+  ls                         List collections
+  {num}                      Select collection num as the current collection
+  --pushuri                  Use the given uri as the collection uri
+  --popuri                   Pops the last pushuri
+  --printuristack            Print the current collection URI stack
+
+atomclient entry [options] [common options] uri
+  --media                    Operate on the associated media if applicable
+  ls                         List entries
+  {num}                      Select entry num as the current entry
+
+
+"""
+ 
