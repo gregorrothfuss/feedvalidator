@@ -248,7 +248,7 @@ class Collection(object):
         Create a Collection from either the URI of the
         collection, or from a Context object.
         """
-        self.context = isinstance(context_or_uri, Context) and context_or_uri or Context(service=context_or_uri) 
+        self._context = isinstance(context_or_uri, Context) and context_or_uri or Context(service=context_or_uri) 
         self.representation = None
         self._etree = None
         self.next = None
@@ -257,7 +257,16 @@ class Collection(object):
         """
         The Context associated with this Collection.
         """
-        return self.context
+        return self._context
+
+    def etree(self):
+        """
+        Returns an ElementTree representation of the 
+        current page of the collection.
+        """
+        if not self.representation:
+            self.get()
+        return self._etree
 
     def _record_next(self, base_uri, headers, body):
         if headers.status == 200:
@@ -277,8 +286,8 @@ class Collection(object):
         Returns a tuple of the HTTP response headers
         and the body.
         """
-        headers, body = self.context.http.request(self.context.collection, headers=headers, body=body)
-        self._record_next(self.context.collection, headers, body)
+        headers, body = self._context.http.request(self._context.collection, headers=headers, body=body)
+        self._record_next(self._context.collection, headers, body)
         return (headers, body)
 
     def has_next(self):
@@ -298,7 +307,7 @@ class Collection(object):
         Returns a tuple of the HTTP response headers
         and the body.
         """
-        headers, body = self.context.http.request(self.next, headers=headers, body=body)
+        headers, body = self._context.http.request(self.next, headers=headers, body=body)
         self._record_next(self.next, headers, body)
         return (headers, body)
 
@@ -312,7 +321,7 @@ class Collection(object):
         Returns a tuple of the HTTP response headers
         and the body.
         """
-        headers, body = self.context.http.request(self.context.collection, method="POST", headers=headers, body=body)
+        headers, body = self._context.http.request(self._context.collection, method="POST", headers=headers, body=body)
         return (headers, body)
 
     def entry_create(self, headers=None, body=None):
@@ -320,9 +329,9 @@ class Collection(object):
         Convenience method that returns an Entry object
         if the create has succeeded, or None if it fails.
         """
-        headers, body = self.context.http.request(self.context.collection, method="POST", headers=headers, body=body)
+        headers, body = self._context.http.request(self._context.collection, method="POST", headers=headers, body=body)
         if headers.status == 201 and 'location' in headers:
-            context = copy.copy(self.context)
+            context = copy.copy(self._context)
             context.entry = headers['location']
             return context
         else:
@@ -336,14 +345,33 @@ class Collection(object):
         self.get()
         while True:
             for entry in self._etree.findall(ATOM_ENTRY):
-                context = copy.copy(self.context)
+                context = copy.copy(self._context)
                 edit_link = link_value(entry, ".", "edit")
-                context.entry = absolutize(self.context.collection, edit_link) 
+                context.entry = absolutize(self._context.collection, edit_link) 
                 yield context
             if self.has_next():
                 self.get_next()
             else:
                 break
+
+    def iter_entry(self):
+        """
+        Returns in iterable that produces an elementtree
+        Entry for every Entry in the collection. Note that this
+        Entry is the possibly incomplete Entry in the collection
+        feed.
+        """
+        self.get()
+        while True:
+            for entry in self._etree.findall(ATOM_ENTRY):
+                yield entry
+            if self.has_next():
+                self.get_next()
+            else:
+                break
+
+
+
 
 
 class Entry(object):
@@ -352,7 +380,7 @@ class Entry(object):
         Create an Entry from either the URI of the
         entry edit URI, or from a Context object.
         """
-        self.context = isinstance(context_or_uri, Context) and context_or_uri or Context(entry=context_or_uri) 
+        self._context = isinstance(context_or_uri, Context) and context_or_uri or Context(entry=context_or_uri) 
         self.representation = None
         self._etree = None
         self.edit_media = None
@@ -371,13 +399,13 @@ class Entry(object):
         return self._etree
 
     def context(self):
-        return self.context
+        return self._context
 
     def get(self, headers=None, body=None):
         """
         Retrieve the representation for this entry.
         """
-        headers, body = self.context.http.request(self.context.entry, headers=headers)
+        headers, body = self._context.http.request(self._context.entry, headers=headers)
         self.representation = body
         try:
             self._etree = fromstring(body)
@@ -405,7 +433,7 @@ class Entry(object):
         """
         if not self.representation:
             self.get()
-        headers, body = self.context.http.request(self.edit_media, headers=headers)
+        headers, body = self._context.http.request(self.edit_media, headers=headers)
         return (headers, body)
 
     def put(self, headers=None, body=None):
@@ -422,7 +450,7 @@ class Entry(object):
             self.get()
         if body == None:
             body = tostring(self._etree)
-        headers, body = self.context.http.request(self.context.entry, headers=headers, method="PUT", body=body)
+        headers, body = self._context.http.request(self._context.entry, headers=headers, method="PUT", body=body)
         if headers.status < 300:
             self._clear()
         return (headers, body)
@@ -434,7 +462,7 @@ class Entry(object):
         """
         if not self.representation:
             self.get()
-        headers, body = self.context.http.request(self.edit_media, headers=headers, method="PUT", body=body)
+        headers, body = self._context.http.request(self.edit_media, headers=headers, method="PUT", body=body)
         if headers.status < 300:
             self._clear()
         return (headers, body)
@@ -443,7 +471,7 @@ class Entry(object):
         """
         Delete the entry from the server.
         """
-        headers, body = self.context.http.request(self.context.entry, headers=headers, method="DELETE")
+        headers, body = self._context.http.request(self._context.entry, headers=headers, method="DELETE")
         if headers.status < 300:
             self._clear()
         return (headers, body)
