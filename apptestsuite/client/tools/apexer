@@ -1,15 +1,14 @@
 #!/bin/env python2.5
 import os
 import sys
-from optparse import OptionParser
+from optparse import OptionParser, SUPPRESS_HELP
 from atompubbase.model import Entry, Collection, Service, Context, APP, ATOM
 from httplib2 import Http
 import pickle
 import itertools
+import mimetypes
+import copy
 
-class FileNotFound(Exception): pass
-class InvalidServiceDocument(Exception): pass
-class UnexpectedResponseCode(Exception): pass
 
 class _Session(object):
     context = Context()
@@ -37,7 +36,7 @@ def _find_session_file(options):
                 os.mkdir(home_dir, 0700)
             dir = os.path.join(home, ".apexer", "session")
     if not dir:
-        raise FileNotFound("Could not locate the session file.")
+        perror("Could not locate the session file.")
     return dir
 
     
@@ -57,7 +56,28 @@ def _restore_session(options):
     session.context.http = Http(session.cache) 
 
     return session
- 
+
+# Create a prototype OptionParser configured the way we 
+# want that will be cloned for each operation.
+baseparser = OptionParser(usage="", conflict_handler="resolve")
+baseparser.add_option("-s", "--session",  dest="session",  help="A file for the session state.") 
+baseparser.add_option("-h", "--help",  help=SUPPRESS_HELP) 
+
+def require_service(service):
+    if None == service:
+        baseparser.error("Please select a service document to start with first.")
+
+def require_collection(collection):
+    if None == collection:
+        baseparser.error("Please select a collection to work with first.")
+
+def require_entry(entry):
+    if None == entry:
+        baseparser.error("Please select an entry to work with first.")
+
+def perror(s):
+    baseparser.error(s)
+
 
 def service(args):
     """service
@@ -67,26 +87,10 @@ usage: service [URI]
 
   Sets the service document to be the one located at URI.
 
-Valid options:
-  -u  [--username] NAME      : Authentication user name
-  -p  [--password] PASSWORD  : Authentication password
-  -s  [--session] FILE       : File containing the session state
-  -v  [--verbose]            : print extra information
-  -c  [--cache] DIR          : directory to be used for http caching
-  -r  [--raw]                : Output the raw XML returned
-  -i  [--include]            : Output the HTTP response headers 
-
 """
-    parser = OptionParser()
-    parser.add_option("-u", "--username", dest="username")
-    parser.add_option("-p", "--password", dest="password") 
-    parser.add_option("-s", "--session",  dest="session") 
-    parser.add_option("-c", "--cache",    dest="cache") 
-    parser.add_option("-r", "--raw",      dest="raw",     action="store_true") 
-    parser.add_option("-i", "--include",  dest="include", action="store_true") 
-    (options, args) = parser.parse_args(args)
+    (options, args) = service.parser.parse_args(args)
     if len(args) != 1:
-        parser.error("Incorrect number of arguments.")
+        perror("Incorrect number of arguments.")
     
     session = _Session()
     session.username = options.username
@@ -100,15 +104,22 @@ Valid options:
         if s.etree() and "{http://www.w3.org/2007/app}service" == s.etree().tag:
             _save_session(session, options)
         else:
-            raise InvalidServiceDocument("Not a valid service document")
+            perror("The document at %s in not a valid service document" % args[0])
     else:
-        raise UnexpectedResponseCode("")
+        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
     if options.include:
         print "\n".join(["%s: %s" % (k, v) for (k,v) in headers.iteritems()])
     if options.raw:
         if options.include:
             print
         print body
+
+service.parser = copy.deepcopy(baseparser)
+service.parser.add_option("-u", "--username", dest="username", help="Username for authentication.")
+service.parser.add_option("-p", "--password", dest="password", help="Password for authentication.") 
+service.parser.add_option("-c", "--cache",    dest="cache",    help="Directory to store the HTTP cache in.") 
+service.parser.add_option("-r", "--raw",      dest="raw",     action="store_true", help="Print the raw response body received.") 
+service.parser.add_option("-i", "--include",  dest="include", action="store_true", help="Print the HTTP headers received.") 
 
 
 def lc(args):
@@ -119,18 +130,14 @@ usage: lc
 
    List the collections enumerated in a service document.
 
-Valid options:
-  -s  [--session] FILE       : File containing the session state
-
 """
-    parser = OptionParser()
-    parser.add_option("-s", "--session",  dest="session") 
-    (options, args) = parser.parse_args(args)
+    (options, args) = lc.parser.parse_args(args)
     if len(args) != 0:
-        parser.error("Incorrect number of arguments.")
+        perror("Incorrect number of arguments.")
     
     session = _restore_session(options)
     service, collection, entry = session.context.restore(Service, Collection, Entry)
+    require_service(service)
     for index, c in enumerate(service.etree().findall(".//{%s}collection" % APP)):
         etitle = c.find("{%s}title" % ATOM)
         if None != etitle:
@@ -140,38 +147,44 @@ Valid options:
 
         print index, " ", title
 
+lc.parser = copy.deepcopy(baseparser)
+
+
 def collection(args):
     """collection 
 
 collection: Select a collection from a service document to work with.
-usage: collection [INDEX]
+usage: collection INDEX
 
    Select the collection by index number from all the
    collections listed in the service document.
 
-Valid options:
-  -s  [--session] FILE       : File containing the session state
-
 """
-    parser = OptionParser()
-    parser.add_option("-s", "--session",  dest="session") 
-    (options, args) = parser.parse_args(args)
+    this = collection
+    (options, args) = this.parser.parse_args(args)
     if len(args) != 1:
-        parser.error("Incorrect number of arguments.")
+        perror("Incorrect number of arguments.")
     
     session = _restore_session(options)
-    service, collection, entry = session.context.restore(Service, Collection, Entry)
+    service, c, entry = session.context.restore(Service, Collection, Entry)
+    require_service(service)
     index = int(args[0])
-    collection = Collection(list(service.iter())[index])
-    headers, body = collection.get()
+    collections = list(service.iter())
+    if index < 0 or index >= len(collections):
+        perror("INDEX out of range. Expected a number between 0 and %d" % len(collections))
+    c = Collection(collections[index])
+    headers, body = c.get()
     if headers.status == 200:
-        if collection.etree() and "{http://www.w3.org/2005/Atom}feed" == collection.etree().tag:
-            session.context = collection.context()
+        if c.etree() and "{http://www.w3.org/2005/Atom}feed" == c.etree().tag:
+            session.context = c.context()
             _save_session(session, options)
         else:
-            raise InvalidServiceDocument("Not a valid service document")
+            perror("The document at %s in not a valid collection document" % c.context().collection)
     else:
-        raise UnexpectedResponseCode("")
+        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
+
+collection.parser = copy.deepcopy(baseparser)
+
 
 def ls(args):
     """ls
@@ -181,20 +194,14 @@ usage: ls
 
    List the entries in a collection.
 
-Valid options:
-  -s  [--session] FILE       : File containing the session state
-  -l  [--all]                : List all the entries, not just the first 20.
-
 """
-    parser = OptionParser()
-    parser.add_option("-s", "--session",  dest="session") 
-    parser.add_option("-l", "--all",      dest="all",     action="store_true") 
-    (options, args) = parser.parse_args(args)
+    (options, args) = ls.parser.parse_args(args)
     if len(args) != 0:
-        parser.error("Incorrect number of arguments.")
+        ls.parser.error("Incorrect number of arguments.")
     
     session = _restore_session(options)
     service, collection, entry = session.context.restore(Service, Collection, Entry)
+    require_collection(collection)
     stop = 10 
     if options.all:
         stop = None
@@ -207,6 +214,9 @@ Valid options:
 
         print index, " ", title
 
+ls.parser = copy.deepcopy(baseparser)
+ls.parser.add_option("-l", "--all",      dest="all",     action="store_true", help="Print all the entries, not just a subset.") 
+
 def entry(args):
     """entry
 
@@ -216,29 +226,71 @@ usage: entry [INDEX]
    Select the entry by index number from all the
    entries listed in the collection.
 
-Valid options:
-  -s  [--session] FILE       : File containing the session state
-
 """
-    parser = OptionParser()
-    parser.add_option("-s", "--session",  dest="session") 
-    (options, args) = parser.parse_args(args)
+    (options, args) = entry.parser.parse_args(args)
     if len(args) != 1:
-        parser.error("Incorrect number of arguments.")
+        entry.parser.error("Incorrect number of arguments.")
     
     session = _restore_session(options)
-    service, collection, entry = session.context.restore(Service, Collection, Entry)
+    service, collection, e = session.context.restore(Service, Collection, Entry)
+    require_collection(collection)
     index = int(args[0])
-    entry = Entry(itertools.islice(collection.iter(), index, index+1).next())
-    headers, body = entry.get()
+    e= Entry(itertools.islice(collection.iter(), index, index+1).next())
+    headers, body = e.get()
     if headers.status == 200:
-        if entry.etree() and "{http://www.w3.org/2005/Atom}entry" == entry.etree().tag:
-            session.context = entry.context()
+        if e.etree() and "{http://www.w3.org/2005/Atom}entry" == e.etree().tag:
+            session.context = e.context()
             _save_session(session, options)
         else:
-            raise InvalidServiceDocument("Not a valid entry document")
+            perror("The document at %s in not a valid entry document" % e.context().entry)
     else:
-        raise UnexpectedResponseCode("")
+        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
+
+entry.parser = copy.deepcopy(baseparser)
+
+
+def create(args):
+    """create
+
+create: Create a new member in a collection.
+usage: create [FILENAME]
+
+    Create a new member in the collection. The FILENAME
+    points to the body to POST to the collection. If FILENAME is not 
+    supplied then the input is read from from stdin. If no 
+    content-type is given then it is sniffed from the filename.
+
+"""
+    (options, args) = create.parser.parse_args(args)
+    session = _restore_session(options)
+    service, collection, entry = session.context.restore(Service, Collection, Entry)
+    require_collection(collection)
+   
+    filename = ''
+    contenttype= options.contenttype
+    if len(args) == 1:
+        filename = args[0]
+        if not contenttype:
+            contenttype = mimetypes.guess_type(filename)
+        f = file(filename, "r")
+        body = f.read()
+        f.close()
+    else:
+        body = sys.stdin.read()
+
+    if not contenttype:
+        perror("Could not determine the mime-type of the data. Please supply it via --content-type.")
+   
+    
+    entry = collection.entry_create(headers={'content-type': contenttype}, body=body)
+    if entry:
+        session.context = entry.context()
+        _save_session(session, options)
+    else:
+        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
+
+create.parser = copy.deepcopy(baseparser)
+create.parser.add_option("-c", "--content-type",  dest="contenttype", help="Set the mime-type of the content being sent") 
 
 
 def get(args):
@@ -251,43 +303,80 @@ usage: get [FILENAME]
    Use the given filename, or 'entry' if none 
    is given.
 
-Valid options:
-  -s  [--session] FILE       : File containing the session state
-
 """
-    parser = OptionParser()
-    parser.add_option("-s", "--session",  dest="session") 
-    (options, args) = parser.parse_args(args)
+    (options, args) = get.parser.parse_args(args)
     filename = 'entry'
     if len(args) == 1:
         filename = args[0]
     
     session = _restore_session(options)
     service, collection, entry = session.context.restore(Service, Collection, Entry)
+    require_entry(entry)
     headers, body = entry.get()
     if headers.status == 200:
         f = file(filename, "w")
         f.write(body)
         f.close()
     else:
-        raise UnexpectedResponseCode("")
+        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
+
+get.parser = copy.deepcopy(baseparser)
 
 
+def put(args):
+    """put [FILENAME]
+
+put: Store the entry back to the server. 
+usage: put [FILENAME]
+
+   Store the entry back to the server.
+   Use the given filename, or 'entry' if none 
+   is given.
+
+"""
+    (options, args) = put.parser.parse_args(args)
+    filename = 'entry'
+    if len(args) == 1:
+        filename = args[0]
+    
+    session = _restore_session(options)
+    service, collection, entry = session.context.restore(Service, Collection, Entry)
+    require_entry(entry)
+    f = file(filename, "r")
+    body = f.read()
+    f.close()
+    headers, body = entry.put(headers={'content-type': 'application/atom+xml;type=entry'}, body=body)
+    if headers.status != 200:
+        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
+
+put.parser = copy.deepcopy(baseparser)
+
+
+def delete(args):
+    """delete [FILENAME]
+
+delete: Delete the entry from the collection. 
+usage: delete [FILENAME]
+
+   Delete the entry from the collection. 
+
+"""
+    (options, args) = delete.parser.parse_args(args)
+    filename = 'entry'
+    if len(args) == 1:
+        filename = args[0]
+    
+    session = _restore_session(options)
+    service, collection, entry = session.context.restore(Service, Collection, Entry)
+    require_entry(entry)
+    headers, body = entry.delete()
+    if headers.status != 200:
+        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
+
+delete.parser = copy.deepcopy(baseparser)
 
 
 # Meta commands -------------------------------------------
-
-def commands(args):
-    """commands
-
-commands: List all sub-commands that apexer knows.
-usage: commands 
-
-"""
-    for name in members:
-        if not name.startswith("_") and callable(members[name]):
-            print members[name].__doc__.splitlines()[0]
-    
 
 def help(args):
     """help
@@ -298,17 +387,6 @@ Type 'apexer help <subcommand>' for help on a specific subcommand.
 
 Most subcommands take URI and/or index arguments.
 
-Available subcommands:
-    service    (s)
-    collection (c)
-    entry      (e)
-    ls
-    lc
-    get
-    put
-    delete
-    create
-
 Session State
    Session state is search for in the following places
    in the following order:
@@ -316,6 +394,8 @@ Session State
    - command line argument
    - $GDATA_CMD_LINE_SESSION
    - $HOME/.gdclient/session
+
+Available subcommands:
 """
     try:
         name = args[0]
@@ -323,13 +403,26 @@ Session State
         name = "help"
     if name in members:
         print members[name].__doc__.split("\n\n", 1)[1]
+        options = getattr(members[name], "parser", None)
+        if options and name != "help":
+            options.print_help()
+        if name == "help":
+            names = list(members.iterkeys())
+            names.sort()
+            print "  ",
+            print "\n   ".join(names)
     else:
         print "Apexer-- Command line client for Atom Publishing Protocol servers."
         print 
         print "Error: '%s' is not a valid command" % name
-    
 
-members = globals()
+parser = OptionParser(usage="", conflict_handler="resolve")
+parser.add_option("-h", "--help",  help=SUPPRESS_HELP) 
+help.parser = parser
+
+
+fns = copy.copy(globals())
+members = dict([(k,v) for (k,v) in fns.iteritems() if not k.startswith("_") and callable(v) and hasattr(v, "parser")])
 
 if __name__ == "__main__":
     try:
@@ -342,30 +435,4 @@ if __name__ == "__main__":
 
     members[cmd](args)
 
-extra = """
-Common Options
-  -u  --username NAME        Authentication user name
-  -p  --password PASSWORD    Authentication password
-  -t  --authtype AUTHTYPE    ClientLogin or AuthSub
-  -c  --cred FILE            File containing the auth name, password and optionally the auth type, on a single line, separated by a space.
-  -r  --raw                  Output the raw XML returned
-  -s  --session FILE         File containing the session state
 
-atomclient service [options] [common options] uri
-  -a  --accept=MIME          Finds the first collection that accepts the given mime type. Wildcards are accepted.
-
-atomclient coll [options] [common options] uri
-  ls                         List collections
-  {num}                      Select collection num as the current collection
-  --pushuri                  Use the given uri as the collection uri
-  --popuri                   Pops the last pushuri
-  --printuristack            Print the current collection URI stack
-
-atomclient entry [options] [common options] uri
-  --media                    Operate on the associated media if applicable
-  ls                         List entries
-  {num}                      Select entry num as the current entry
-
-
-"""
- 
