@@ -13,8 +13,6 @@ import copy
 
 class _Session(object):
     context = Context()
-    username = None
-    password = None
     authtype = None
     credentials = None
     cache = None
@@ -51,7 +49,10 @@ def _save_session(session, options):
 
 def _restore_session(options):
     fname = _find_session_file(options)
-    f = file(fname, "r")
+    try:
+        f = file(fname, "r")
+    except IOError:
+        perror("Unable to load the session file %s, file is missing or unreadable." % fname)
     session = pickle.load(f)
     f.close()
     session.context.http = Http(session.cache) 
@@ -92,8 +93,7 @@ usage: service [URI]
         perror("Incorrect number of arguments.")
     
     session = _Session()
-    session.username = options.username
-    session.password = options.password
+    session.cred = options.cred
     session.cache = options.cache
     h = Http(session.cache)
     session.context = Context(http=h, service=args[0])
@@ -114,7 +114,7 @@ usage: service [URI]
         print body
 
 service.parser = copy.deepcopy(baseparser)
-service.parser.add_option("-u", "--username", dest="username", help="Username for authentication.")
+service.parser.add_option("-d", "--cred",     dest="cred",     help="File containing credentials. The file must contain a username on one line and the password on the next.")
 service.parser.add_option("-p", "--password", dest="password", help="Password for authentication.") 
 service.parser.add_option("-c", "--cache",    dest="cache",    help="Directory to store the HTTP cache in.") 
 service.parser.add_option("-r", "--raw",      dest="raw",     action="store_true", help="Print the raw response body received.") 
@@ -447,11 +447,9 @@ Available subcommands:
             print "  ",
             print "\n   ".join(names)
     else:
-        perror("'%s' is not a valid command" % name)
+        perror("'%s' is not a valid command.\nType 'apexer help' for usage." % cmd)
 
-parser = OptionParser(usage="", conflict_handler="resolve")
-parser.add_option("-h", "--help",  help=SUPPRESS_HELP) 
-help.parser = parser
+help.parser = copy.deepcopy(baseparser)
 
 
 fns = copy.copy(globals())
