@@ -273,7 +273,7 @@ usage: create [FILENAME]
     
     entry = collection.entry_create(headers={'content-type': contenttype}, body=body)
     if entry:
-        session.context = entry.context()
+        session.context = entry
         _save_session(session, options)
     else:
         perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
@@ -315,8 +315,9 @@ def getmedia(args):
 usage: getmedia [FILENAME]
 
    Retrieve the associate media entry and store it locally. 
-   Use the given filename, or 'media' if none 
-   is given.
+   Use the given filename, or 'media.{ext}' if none 
+   is given, where {ext} is the appropriate extension for
+   the media type returned.
 
 """
     (options, args) = get.parser.parse_args(args)
@@ -329,7 +330,7 @@ usage: getmedia [FILENAME]
     require_entry(entry)
     headers, body = entry.get_media()
     if headers.status == 200:
-        f = file(filename, "w")
+        f = file(filename, "wb")
         f.write(body)
         f.close()
     else:
@@ -365,6 +366,34 @@ usage: put [FILENAME]
         perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
 
 put.parser = copy.deepcopy(baseparser)
+
+
+
+def putmedia(args):
+    """putmedia: Store the entry back to the server. 
+usage: putmedia [FILENAME]
+
+   Store the media back to the server.
+   Use the given filename, or 'media' if none 
+   is given.
+
+"""
+    (options, args) = put.parser.parse_args(args)
+    filename = 'media'
+    if len(args) == 1:
+        filename = args[0]
+    
+    session = _restore_session(options)
+    service, collection, entry = session.context.restore(Service, Collection, Entry)
+    require_entry(entry)
+    f = file(filename, "rb")
+    body = f.read()
+    f.close()
+    headers, body = entry.put_media(body=body)
+    if headers.status != 200:
+        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
+
+putmedia.parser = copy.deepcopy(baseparser)
 
 
 def delete(args):

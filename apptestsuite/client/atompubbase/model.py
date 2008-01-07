@@ -412,10 +412,8 @@ class Entry(object):
         except ExpatError:
             self._etree = None
 
+        self.edit_media = absolutize(self._context.entry, link_value(self._etree, ".", "edit-media")) 
 
-
-
-        self.edit_media = link_value(self._etree, ".", "edit-media")
         return (headers, body)
 
     def has_media(self):
