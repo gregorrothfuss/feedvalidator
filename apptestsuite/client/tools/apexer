@@ -9,7 +9,7 @@ import pickle
 import itertools
 import mimetypes
 import copy
-
+import httplib2
 
 class _Session(object):
     context = Context()
@@ -56,6 +56,11 @@ def _restore_session(options):
     session = pickle.load(f)
     f.close()
     session.context.http = Http(session.cache) 
+    if session.credentials:
+        f = file(session.credentials, "r")
+        name, password = f.read().split()[0:2]
+        f.close()
+        session.context.http.add_credentials(name, password)
 
     return session
 
@@ -93,7 +98,7 @@ usage: service [URI]
         perror("Incorrect number of arguments.")
     
     session = _Session()
-    session.cred = options.cred
+    session.credentials = options.cred
     session.cache = options.cache
     h = Http(session.cache)
     session.context = Context(http=h, service=args[0])
@@ -437,6 +442,7 @@ usage: status
     print "HTTP Cache       : ", session.cache or "(none)"
     fname = _find_session_file(options)
     print "Session File     : ", fname or "(none)"
+    print "Credentials File     : ", session.credentials or "(none)"
 
 status.parser = copy.deepcopy(baseparser)
 

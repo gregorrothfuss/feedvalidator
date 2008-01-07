@@ -77,6 +77,8 @@ def absolutize(baseuri, uri):
     version of the given uri. Works whether
     uri is relative or absolute.
     """
+    if uri == None:
+        return None
     (scheme, authority, path, query, fragment) = urlparse.urlsplit(uri)
     if not authority:
         uri = urlparse.urljoin(baseuri, uri)
@@ -105,7 +107,7 @@ class Context(object):
     _service = None
     _collection = None 
     _entry = None
-    _http = None
+    http = None
     _collection_stack = []
 
     def __init__(self, http = None, service=None, collection=None, entry=None):
@@ -227,7 +229,10 @@ class Service(object):
         if not self.representation:
             headers, body = self.get()
         for coll in self._etree.findall(".//" + APP_COLL):
-            coll_type = [t for t in coll.findall(APP_MEMBER_TYPE) if mimeparse.best_match([t.text], mimerange)] 
+            accept_type = [t.text for t in coll.findall(APP_MEMBER_TYPE)] 
+            if len(accept_type) == 0:
+                accept_type.append("application/atom+xml")
+            coll_type = [t for t in accept_type if mimeparse.best_match([t], mimerange)] 
             if coll_type:
                 context = copy.copy(self.context)
                 context.collection = absolutize(self.context.service, coll.get('href')) 
