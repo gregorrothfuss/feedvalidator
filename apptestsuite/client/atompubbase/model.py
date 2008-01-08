@@ -113,7 +113,7 @@ class Context(object):
     def __init__(self, http = None, service=None, collection=None, entry=None):
         """http is either an instance of httplib2.Http() or something that 
         acts like it. For this module the only tow functions that need to 
-        be implemented are request() and add_crendentials().
+        be implemented are request() and add_credentials().
         """
         self._collection_stack = []
         if http:
