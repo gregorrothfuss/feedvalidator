@@ -110,6 +110,9 @@ and&nbsp;the&nbsp;body.</tt></dd></dl>
 <dl><dt><a name="Collection-entry_create"><strong>entry_create</strong></a>(self, headers<font color="#909090">=None</font>, body<font color="#909090">=None</font>)</dt><dd><tt>Convenience&nbsp;method&nbsp;that&nbsp;returns&nbsp;an&nbsp;<a href="#Entry">Entry</a>&nbsp;<a href="__builtin__.html#object">object</a><br>
 if&nbsp;the&nbsp;create&nbsp;has&nbsp;succeeded,&nbsp;or&nbsp;None&nbsp;if&nbsp;it&nbsp;fails.</tt></dd></dl>
 
+<dl><dt><a name="Collection-etree"><strong>etree</strong></a>(self)</dt><dd><tt>Returns&nbsp;an&nbsp;ElementTree&nbsp;representation&nbsp;of&nbsp;the&nbsp;<br>
+current&nbsp;page&nbsp;of&nbsp;the&nbsp;collection.</tt></dd></dl>
+
 <dl><dt><a name="Collection-get"><strong>get</strong></a>(self, headers<font color="#909090">=None</font>, body<font color="#909090">=None</font>)</dt><dd><tt>Retrieves&nbsp;the&nbsp;first&nbsp;feed&nbsp;in&nbsp;a&nbsp;paged&nbsp;series&nbsp;of&nbsp;<br>
 collection&nbsp;documents.<br>
 &nbsp;<br>
@@ -130,6 +133,11 @@ Atom&nbsp;feeds.&nbsp;Returns&nbsp;True&nbsp;if&nbsp;there&nbsp;is&nbsp;a&nbsp;<
 <dl><dt><a name="Collection-iter"><strong>iter</strong></a>(self)</dt><dd><tt>Returns&nbsp;in&nbsp;iterable&nbsp;that&nbsp;produces&nbsp;a&nbsp;<a href="#Context">Context</a>&nbsp;<br>
 <a href="__builtin__.html#object">object</a>&nbsp;for&nbsp;every&nbsp;<a href="#Entry">Entry</a>&nbsp;in&nbsp;the&nbsp;collection.</tt></dd></dl>
 
+<dl><dt><a name="Collection-iter_entry"><strong>iter_entry</strong></a>(self)</dt><dd><tt>Returns&nbsp;in&nbsp;iterable&nbsp;that&nbsp;produces&nbsp;an&nbsp;elementtree<br>
+<a href="#Entry">Entry</a>&nbsp;for&nbsp;every&nbsp;<a href="#Entry">Entry</a>&nbsp;in&nbsp;the&nbsp;collection.&nbsp;Note&nbsp;that&nbsp;this<br>
+<a href="#Entry">Entry</a>&nbsp;is&nbsp;the&nbsp;possibly&nbsp;incomplete&nbsp;<a href="#Entry">Entry</a>&nbsp;in&nbsp;the&nbsp;collection<br>
+feed.</tt></dd></dl>
+
 <hr>
 Data and other attributes defined here:<br>
 <dl><dt><strong>__dict__</strong> = &lt;dictproxy object&gt;<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dl>
@@ -149,7 +157,9 @@ entry.&nbsp;Can&nbsp;be&nbsp;picked&nbsp;and&nbsp;un-pickled&nbsp;to<br>
 achieve&nbsp;persistence&nbsp;of&nbsp;context.<br>&nbsp;</tt></td></tr>
 <tr><td>&nbsp;</td>
 <td width="100%">Methods defined here:<br>
-<dl><dt><a name="Context-__init__"><strong>__init__</strong></a>(self, http<font color="#909090">=None</font>, service<font color="#909090">=None</font>, collection<font color="#909090">=None</font>, entry<font color="#909090">=None</font>)</dt></dl>
+<dl><dt><a name="Context-__init__"><strong>__init__</strong></a>(self, http<font color="#909090">=None</font>, service<font color="#909090">=None</font>, collection<font color="#909090">=None</font>, entry<font color="#909090">=None</font>)</dt><dd><tt>http&nbsp;is&nbsp;either&nbsp;an&nbsp;instance&nbsp;of&nbsp;httplib2.Http()&nbsp;or&nbsp;something&nbsp;that&nbsp;<br>
+acts&nbsp;like&nbsp;it.&nbsp;For&nbsp;this&nbsp;module&nbsp;the&nbsp;only&nbsp;tow&nbsp;functions&nbsp;that&nbsp;need&nbsp;to&nbsp;<br>
+be&nbsp;implemented&nbsp;are&nbsp;request()&nbsp;and&nbsp;add_crendentials().</tt></dd></dl>
 
 <dl><dt><a name="Context-collpop"><strong>collpop</strong></a>(self)</dt><dd><tt>See&nbsp;collpush.</tt></dd></dl>
 
@@ -191,6 +201,8 @@ Data and other attributes defined here:<br>
 <dl><dt><strong>__dict__</strong> = &lt;dictproxy object&gt;<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dl>
 
 <dl><dt><strong>__weakref__</strong> = &lt;attribute '__weakref__' of 'Context' objects&gt;<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;(if&nbsp;defined)</tt></dl>
+
+<dl><dt><strong>http</strong> = None</dl>
 
 </td></tr></table> <p>
 <table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
