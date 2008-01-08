@@ -2,7 +2,7 @@
 __version__ = "0.1.0"
 import os
 import sys
-from optparse import OptionParser, SUPPRESS_HELP
+from optparse import OptionParser, SUPPRESS_HELP, make_option
 from atompubbase.model import Entry, Collection, Service, Context, APP, ATOM
 from httplib2 import Http
 import pickle
@@ -67,8 +67,16 @@ def _restore_session(options):
 # Create a prototype OptionParser configured the way we 
 # want that will be cloned for each operation.
 baseparser = OptionParser(usage="", conflict_handler="resolve")
+
+# Add in options common to all commands
 baseparser.add_option("-s", "--session",  dest="session",  help="A file for the session state.") 
 baseparser.add_option("-h", "--help",  help=SUPPRESS_HELP) 
+
+# Define options to be used by mulitple commands
+RAW         = make_option("-r", "--raw",         dest="raw",      action="store_true", help="Print the raw response body received.") 
+INCLUDE     = make_option("-i", "--include",     dest="include",  action="store_true", help="Print the HTTP headers received.") 
+CREDENTIALS = make_option("-d", "--credentials", dest="credentials",     help="File containing credentials. The file must contain a username on one line and the password on the next.")
+CACHE       = make_option("-c", "--cache",       dest="cache",           help="Directory to store the HTTP cache in.") 
 
 def require_service(service):
     if None == service:
@@ -86,6 +94,15 @@ def perror(s):
     baseparser.error(s)
 
 
+def response_options(options, headers, body):
+    if options.include:
+        print "\n".join(["%s: %s" % (k, v) for (k,v) in headers.iteritems()])
+    if options.raw:
+        if options.include:
+            print
+        print body
+
+
 def service(args):
     """service: Set the service document to work from.
 usage: service [URI]
@@ -98,7 +115,7 @@ usage: service [URI]
         perror("Incorrect number of arguments.")
     
     session = _Session()
-    session.credentials = options.cred
+    session.credentials = options.credentials
     session.cache = options.cache
     h = Http(session.cache)
     session.context = Context(http=h, service=args[0])
@@ -110,20 +127,14 @@ usage: service [URI]
         else:
             perror("The document at %s in not a valid service document" % args[0])
     else:
-        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
-    if options.include:
-        print "\n".join(["%s: %s" % (k, v) for (k,v) in headers.iteritems()])
-    if options.raw:
-        if options.include:
-            print
-        print body
+        perror("Did not receive a good HTTP status code, expected 200, but received %d %s" % (headers.status, headers.reason))
+    response_options(options, headers, body)
 
 service.parser = copy.deepcopy(baseparser)
-service.parser.add_option("-d", "--cred",     dest="cred",     help="File containing credentials. The file must contain a username on one line and the password on the next.")
-service.parser.add_option("-p", "--password", dest="password", help="Password for authentication.") 
-service.parser.add_option("-c", "--cache",    dest="cache",    help="Directory to store the HTTP cache in.") 
-service.parser.add_option("-r", "--raw",      dest="raw",     action="store_true", help="Print the raw response body received.") 
-service.parser.add_option("-i", "--include",  dest="include", action="store_true", help="Print the HTTP headers received.") 
+service.parser.add_option(CREDENTIALS)
+service.parser.add_option(CACHE) 
+service.parser.add_option(RAW) 
+service.parser.add_option(INCLUDE) 
 
 
 def lc(args):
@@ -166,12 +177,17 @@ usage: collection INDEX
         perror("Incorrect number of arguments.")
     
     session = _restore_session(options)
+    if options.credentials:
+        session.credentials = options.credentials
+    if options.cache:
+        session.cache = options.cache
+
     service, c, entry = session.context.restore(Service, Collection, Entry)
     require_service(service)
     index = int(args[0])
     collections = list(service.iter())
     if index < 0 or index >= len(collections):
-        perror("INDEX out of range. Expected a number between 0 and %d" % len(collections))
+        perror("INDEX out of range. Expected a number from 0 to %d" % len(collections)-1)
     c = Collection(collections[index])
     headers, body = c.get()
     if headers.status == 200:
@@ -181,10 +197,14 @@ usage: collection INDEX
         else:
             perror("The document at %s in not a valid collection document" % c.context().collection)
     else:
-        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
+        perror("Did not receive a good HTTP status code, expected 200, but received %d %s" % (headers.status, headers.reason))
+    response_options(options, headers, body)
 
 collection.parser = copy.deepcopy(baseparser)
-
+collection.parser.add_option(RAW) 
+collection.parser.add_option(INCLUDE) 
+collection.parser.add_option(CREDENTIALS)
+collection.parser.add_option(CACHE) 
 
 def ls(args):
     """ls: List the entries 
@@ -228,6 +248,12 @@ usage: entry [INDEX]
         entry.parser.error("Incorrect number of arguments.")
     
     session = _restore_session(options)
+
+    if options.credentials:
+        session.credentials = options.credentials
+    if options.cache:
+        session.cache = options.cache
+
     service, collection, e = session.context.restore(Service, Collection, Entry)
     require_collection(collection)
     index = int(args[0])
@@ -240,10 +266,14 @@ usage: entry [INDEX]
         else:
             perror("The document at %s in not a valid entry document" % e.context().entry)
     else:
-        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
+        perror("Did not receive a good HTTP status code, expected 200, but received %d %s" % (headers.status, headers.reason))
+    response_options(options, headers, body)
 
 entry.parser = copy.deepcopy(baseparser)
-
+entry.parser.add_option(RAW) 
+entry.parser.add_option(INCLUDE) 
+entry.parser.add_option(CREDENTIALS)
+entry.parser.add_option(CACHE) 
 
 def create(args):
     """create: Create a new member in a collection.
@@ -281,7 +311,7 @@ usage: create [FILENAME]
         session.context = entry
         _save_session(session, options)
     else:
-        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
+        perror("Did not receive a good HTTP status code, expected 200, but received %d %s" % (headers.status, headers.reason))
 
 create.parser = copy.deepcopy(baseparser)
 create.parser.add_option("-c", "--content-type",  dest="contenttype", help="Set the mime-type of the content being sent") 
@@ -310,9 +340,12 @@ usage: get [FILENAME]
         f.write(body)
         f.close()
     else:
-        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
+        perror("Did not receive a good HTTP status code, expected 200, but received %d %s" % (headers.status, headers.reason))
+    response_options(options, headers, body)
 
 get.parser = copy.deepcopy(baseparser)
+get.parser.add_option(RAW) 
+get.parser.add_option(INCLUDE) 
 
 
 def getmedia(args):
@@ -339,7 +372,7 @@ usage: getmedia [FILENAME]
         f.write(body)
         f.close()
     else:
-        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
+        perror("Did not receive a good HTTP status code, expected 200, but received %d %s" % (headers.status, headers.reason))
 
 getmedia.parser = copy.deepcopy(baseparser)
 
@@ -368,7 +401,7 @@ usage: put [FILENAME]
     f.close()
     headers, body = entry.put(headers={'content-type': 'application/atom+xml;type=entry'}, body=body)
     if headers.status != 200:
-        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
+        perror("Did not receive a good HTTP status code, expected 200, but received %d %s" % (headers.status, headers.reason))
 
 put.parser = copy.deepcopy(baseparser)
 
@@ -396,7 +429,7 @@ usage: putmedia [FILENAME]
     f.close()
     headers, body = entry.put_media(body=body)
     if headers.status != 200:
-        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
+        perror("Did not receive a good HTTP status code, expected 200, but received %d %s" % (headers.status, headers.reason))
 
 putmedia.parser = copy.deepcopy(baseparser)
 
@@ -418,7 +451,7 @@ usage: delete [FILENAME]
     require_entry(entry)
     headers, body = entry.delete()
     if headers.status != 200:
-        perror("Did not receive a good HTTP status code, expected 200, but received %d" % headers.status)
+        perror("Did not receive a good HTTP status code, expected 200, but received %d %s" % (headers.status, headers.reason))
 
 delete.parser = copy.deepcopy(baseparser)
 
@@ -442,7 +475,7 @@ usage: status
     print "HTTP Cache       : ", session.cache or "(none)"
     fname = _find_session_file(options)
     print "Session File     : ", fname or "(none)"
-    print "Credentials File     : ", session.credentials or "(none)"
+    print "Credentials File : ", session.credentials or "(none)"
 
 status.parser = copy.deepcopy(baseparser)
 
@@ -452,7 +485,7 @@ st = status
 
 def help(args):
     """usage: apexer <subcommand> [options] [args]
-Apexer command-line client, version 0.1.0.
+Apexer command-line client, version %(__version__)s.
 Type 'apexer help <subcommand>' for help on a specific subcommand.
 
 Most subcommands take URI and/or index arguments.
@@ -466,13 +499,13 @@ Session State
    - $HOME/.gdclient/session
 
 Available subcommands:
-"""
+""" 
     try:
         name = args[0]
     except:
         name = "help"
     if name in members:
-        print members[name].__doc__
+        print members[name].__doc__ % globals()
         options = getattr(members[name], "parser", None)
         if options and name != "help":
             options.print_help()
@@ -487,8 +520,7 @@ Available subcommands:
 help.parser = copy.deepcopy(baseparser)
 
 
-fns = copy.copy(globals())
-members = dict([(k,v) for (k,v) in fns.iteritems() if not k.startswith("_") and callable(v) and hasattr(v, "parser")])
+members = dict([(k,v) for (k,v) in copy.copy(globals()).iteritems() if not k.startswith("_") and callable(v) and hasattr(v, "parser")])
 
 if __name__ == "__main__":
     try:
