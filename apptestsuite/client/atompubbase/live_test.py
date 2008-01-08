@@ -1,7 +1,6 @@
 from model import init_event_handlers, Context, Service, Collection, Entry, ATOM, XHTML
 from httplib2 import Http
 import unittest
-import feedparser
 import events
 
 try:
