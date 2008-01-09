@@ -21,12 +21,12 @@ class _Session(object):
 def _find_session_file(options):
     """
     command line options
-    $GDATA_CMD_LINE_SESSION
+    $APEXER_CMD_LINE_SESSION
     $HOME/.apexer/session
     """
     dir = options.session
     if not dir:
-       dir = os.environ.get("GDATA_CMD_LINE_SESSION")
+       dir = os.environ.get("APEXER_CMD_LINE_SESSION")
     if not dir:
         home = os.environ.get("HOME")
         if home:
@@ -495,8 +495,8 @@ Session State
    in the following order:
 
    - command line argument
-   - $GDATA_CMD_LINE_SESSION
-   - $HOME/.gdclient/session
+   - $APEXER_CMD_LINE_SESSION
+   - $HOME/.apexer/session
 
 Available subcommands:
 """ 
