@@ -45,8 +45,17 @@ def _save_session(session, options):
     f = file(fname, "w")
     pickle.dump(session, f)
     f.close()
-    
+   
+def apply_credentials(session, credentials):
+    try:
+        f = file(credentials, "r")
+    except IOError:
+        perror("Unable to load the credentials file %s, file is missing or unreadable." % credentials)
+    name, password = f.read().split()[0:2]
+    f.close()
+    session.context.http.add_credentials(name, password)
 
+ 
 def _restore_session(options):
     fname = _find_session_file(options)
     try:
@@ -57,10 +66,7 @@ def _restore_session(options):
     f.close()
     session.context.http = Http(session.cache) 
     if session.credentials:
-        f = file(session.credentials, "r")
-        name, password = f.read().split()[0:2]
-        f.close()
-        session.context.http.add_credentials(name, password)
+        apply_credentials(session, session.credentials)
 
     return session
 
@@ -115,10 +121,12 @@ usage: service [URI]
         perror("Incorrect number of arguments.")
     
     session = _Session()
-    session.credentials = options.credentials
     session.cache = options.cache
     h = Http(session.cache)
     session.context = Context(http=h, service=args[0])
+    if options.credentials:
+        apply_credentials(session, options.credentials)
+        session.credentials = options.credentials
     s = Service(session.context)
     headers, body = s.get()
     if headers.status == 200:
@@ -178,6 +186,7 @@ usage: collection INDEX
     
     session = _restore_session(options)
     if options.credentials:
+        apply_credentials(session, options.credentials)
         session.credentials = options.credentials
     if options.cache:
         session.cache = options.cache
@@ -251,6 +260,7 @@ usage: entry [INDEX]
 
     if options.credentials:
         session.credentials = options.credentials
+        apply_credentials(session, options.credentials)
     if options.cache:
         session.cache = options.cache
 
