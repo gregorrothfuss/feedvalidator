@@ -4,6 +4,9 @@ __copyright__ = "Copyright (c) 2006 Joe Gregorio"
 __license__ = "MIT"
 
 import os 
+import sys
+
+sys.path.append(os.getcwd())
 
 CUR_DIR = os.path.split(os.path.abspath(__file__))[0]
 ATOM = "http://www.w3.org/2005/Atom"
@@ -14,6 +17,13 @@ ATOM_TITLE= "{%s}title" % ATOM
 APP = "http://www.w3.org/2007/app"
 APP_COLL = "{%s}collection" % APP
 APP_MEMBER_TYPE = "{%s}accept" % APP
+
+import httplib2
+try:
+      from xml.etree.ElementTree import fromstring, tostring
+except:
+      from elementtree.ElementTree import fromstring, tostring
+
 
 # By default we'll check the bitworking collection 
 INTROSPECTION_URI = "http://bitworking.org/projects/apptestsite/app.cgi/service/;service_document"
@@ -28,7 +38,12 @@ import time
 # Add hooks that do validation of the documents at every step
 # Add hooks to specific actions that validate other things (such as response status codes)
 # Add hooks that log the requests and responses for later inspection (putting them on the HTML page).
-# 
+#
+# Need an object to keep track of the current state, i.e. the test and
+# request/response pair that each error/warning/informational is about.
+#
+# Create an httplib2 instance for atompubbase that has a memory based cache.
+
 
 import feedvalidator
 from feedvalidator import compatibility
@@ -40,7 +55,7 @@ except:
     from atompubbase.ErrorReporting import *
 
 try:
-    import mimeparse
+    from mimeparse import mimeparse
 except:
     import atompubbase.mimeparse.mimeparse as mimeparse
 
@@ -49,7 +64,8 @@ def usage(option=""):
     print """Usage: appclienttest [OPTION] IntrospectionURI
 
   -h, --help            Display this help message then exit.
-      --credentials     File containing username and password on two separate lines.
+      --name=<name>     User name to use for authentication.
+      --password=<pw>   Password to use for authentication.
       --debug=<n>       Print debugging information for n > 0.
 
 """
