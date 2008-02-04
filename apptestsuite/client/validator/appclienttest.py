@@ -17,21 +17,21 @@ APP_MEMBER_TYPE = "{%s}accept" % APP
 
 # By default we'll check the bitworking collection 
 INTROSPECTION_URI = "http://bitworking.org/projects/apptestsite/app.cgi/service/;service_document"
-import httplib2
-try:
-    from xml.etree.ElementTree import fromstring, tostring
-except:
-    from elementtree.ElementTree import fromstring, tostring
-
+import atompubbase
 import urlparse
 import cStringIO
 import sys
 import getopt
 import time
 
+# Restructure so that we use atompubbase
+# Add hooks that do validation of the documents at every step
+# Add hooks to specific actions that validate other things (such as response status codes)
+# Add hooks that log the requests and responses for later inspection (putting them on the HTML page).
+# 
+
 import feedvalidator
 from feedvalidator import compatibility
-from gettext import gettext as _
 try:
     from atompubbase.ErrorReporting import *
 except:
@@ -49,8 +49,7 @@ def usage(option=""):
     print """Usage: appclienttest [OPTION] IntrospectionURI
 
   -h, --help            Display this help message then exit.
-      --name=<name>     User name to use for authentication.
-      --password=<pw>   Password to use for authentication. 
+      --credentials     File containing username and password on two separate lines.
       --debug=<n>       Print debugging information for n > 0.
 
 """
