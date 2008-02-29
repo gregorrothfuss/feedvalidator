@@ -153,7 +153,7 @@ class Recorder:
     atompubbase.events.register_callback("ANY", self.log_request_response)
 
   def error(self, msg, detail):
-    has_errors = True
+    self.has_errors = True
     self.transcript.append(("Error", msg, detail))
 
   def warning(self, msg, detail):
@@ -236,7 +236,7 @@ class Recorder:
 
   def _validate(self, headers, body):
     if headers.status in [200, 201]:
-      baseuri = headers['content-location']
+      baseuri = headers.get('content-location', '')
       try:
           events = feedvalidator.validateStream(cStringIO.StringIO(body),
                                                 firstOccurrenceOnly=1,
