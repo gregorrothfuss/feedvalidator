@@ -147,10 +147,11 @@ class Recorder:
   has_warnings = False
 
   def __init__(self):
+    atompubbase.events.register_callback("ANY", self.log_request_response)
     atompubbase.events.register_callback("POST_CREATE", self.create_validation_cb)
     atompubbase.events.register_callback("POST_GET", self.get_check_response_cb)
     atompubbase.events.register_callback("POST_GET", self.content_validation_cb)
-    atompubbase.events.register_callback("ANY", self.log_request_response)
+
 
   def error(self, msg, detail):
     self.has_errors = True
@@ -345,6 +346,8 @@ class Test:
                 self.context = method
                 begin_test(method.split("test", 1)[1].replace("_", " "), self.description)
                 test_member_function()
+            except ExpatError:
+                error(REPRESENTATION, "Not well-formed XML")
             except Exception, e:
                 import traceback
                 info("Internal error occured while running tests: " + str(e) + traceback.format_exc())
