@@ -144,6 +144,7 @@ class Recorder:
   html = True
   verbosity = 0
   has_errors = False
+  has_warnings = False
 
   def __init__(self):
     atompubbase.events.register_callback("POST_CREATE", self.create_validation_cb)
@@ -156,6 +157,7 @@ class Recorder:
     self.transcript.append(("Error", msg, detail))
 
   def warning(self, msg, detail):
+    self.has_warnings = True    
     self.transcript.append(("Warning", msg, detail))
 
   def info(self, detail):
@@ -562,7 +564,7 @@ class TestIntrospection(Test):
           test = MediaCollectionTests(Collection(media_collections[0]))
           test.run()
 
-def main():
+def main(options, cmd_line_args):
     if options.debug:
         httplib2.debuglevel = 5
     if options.verbose:
@@ -588,7 +590,6 @@ def main():
       else:
         error(CRED_FILE, "Wrong format for credentials file")
 
-    global cmd_line_args
     if not cmd_line_args:
       cmd_line_args = [INTROSPECTION_URI]
     for target_uri in cmd_line_args:
@@ -603,7 +604,13 @@ def main():
       outfile = file(options.output, "w")
 
     print >>outfile, recorder.tostr()
-    return int(recorder.has_errors)
+    status = 0
+    if recorder.has_warnings:
+      status = 1
+    if recorder.has_errors:
+      status = 2
+
+    return status
 
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(main(options, cmd_line_args))

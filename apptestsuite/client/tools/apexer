@@ -10,6 +10,7 @@ import itertools
 import mimetypes
 import copy
 import httplib2
+httplib2.debuglevel=4
 
 class _Session(object):
     context = Context()
@@ -38,14 +39,13 @@ def _find_session_file(options):
         perror("Could not locate the session file.")
     return dir
 
-    
 def _save_session(session, options):
     session.context.http = None
     fname = _find_session_file(options)
     f = file(fname, "w")
     pickle.dump(session, f)
     f.close()
-   
+
 def apply_credentials(session, credentials):
     try:
         f = file(credentials, "r")
@@ -55,7 +55,7 @@ def apply_credentials(session, credentials):
     f.close()
     session.context.http.add_credentials(name, password)
 
- 
+
 def _restore_session(options):
     fname = _find_session_file(options)
     try:
@@ -65,6 +65,7 @@ def _restore_session(options):
     session = pickle.load(f)
     f.close()
     session.context.http = Http(session.cache) 
+
     if session.credentials:
         apply_credentials(session, session.credentials)
 
@@ -183,21 +184,33 @@ usage: collection INDEX
     (options, args) = this.parser.parse_args(args)
     if len(args) != 1:
         perror("Incorrect number of arguments.")
-    
-    session = _restore_session(options)
-    if options.credentials:
-        apply_credentials(session, options.credentials)
-        session.credentials = options.credentials
-    if options.cache:
-        session.cache = options.cache
+    try:
+      int(args[0])
 
-    service, c, entry = session.context.restore(Service, Collection, Entry)
-    require_service(service)
-    index = int(args[0])
-    collections = list(service.iter())
-    if index < 0 or index >= len(collections):
-        perror("INDEX out of range. Expected a number from 0 to %d" % len(collections)-1)
-    c = Collection(collections[index])
+      session = _restore_session(options)
+      if options.credentials:
+          apply_credentials(session, options.credentials)
+          session.credentials = options.credentials
+      if options.cache:
+          session.cache = options.cache
+
+      service, c, entry = session.context.restore(Service, Collection, Entry)
+      require_service(service)
+      index = int(args[0])
+      collections = list(service.iter())
+      if index < 0 or index >= len(collections):
+          perror("INDEX out of range. Expected a number from 0 to %d" % len(collections)-1)
+      c = Collection(collections[index])
+    except ValueError:
+      session = _Session()
+      session.cache = options.cache
+      h = Http(session.cache)
+      session.context = Context(http=h, collection=args[0])
+      if options.credentials:
+          apply_credentials(session, options.credentials)
+          session.credentials = options.credentials
+      c = Collection(session.context)
+
     headers, body = c.get()
     if headers.status == 200:
         if c.etree() and "{http://www.w3.org/2005/Atom}feed" == c.etree().tag:
@@ -255,7 +268,7 @@ usage: entry [INDEX]
     (options, args) = entry.parser.parse_args(args)
     if len(args) != 1:
         entry.parser.error("Incorrect number of arguments.")
-    
+
     session = _restore_session(options)
 
     if options.credentials:
@@ -542,5 +555,3 @@ if __name__ == "__main__":
         perror("'%s' is not a valid command.\nType 'apexer help' for usage." % cmd)
     else:
         members[cmd](args)
-
-
