@@ -346,7 +346,7 @@ class Test:
                 self.context = method
                 begin_test(method.split("test", 1)[1].replace("_", " "), self.description)
                 test_member_function()
-            except ExpatError:
+            except xml.parsers.expat.ExpatError:
                 error(REPRESENTATION, "Not well-formed XML")
             except Exception, e:
                 import traceback
