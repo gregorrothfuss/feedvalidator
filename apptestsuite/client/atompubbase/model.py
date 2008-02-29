@@ -492,4 +492,3 @@ def init_event_handlers():
     events.add_event_handlers(Service)
     events.add_event_handlers(Collection)
     events.add_event_handlers(Entry)
-

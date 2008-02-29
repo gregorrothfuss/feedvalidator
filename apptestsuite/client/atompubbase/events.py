@@ -122,6 +122,8 @@ def _wrap(method, methodname):
     the eventing system.
     """
     def wrapped(self, headers=None, body=None):
+        if headers == None:
+          headers = {}
         events.trigger("PRE", methodname, self, headers, body)
         (headers, body) = method(self, headers, body)
         events.trigger("POST", methodname, self, headers, body)
@@ -162,4 +164,3 @@ def clear():
 
 
 __all__ = ["add_event_handlers", "register_callback", "clear"]
-
