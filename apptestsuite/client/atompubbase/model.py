@@ -208,10 +208,7 @@ class Service(object):
         headers, body = self.context.http.request(self.context.service, headers=headers)
         if headers.status == 200:
             self.representation = body
-            try:
-                self._etree = fromstring(body)
-            except ExpatError:
-                self._etree = None
+            self._etree = fromstring(body)
         return (headers, body)
 
     def etree(self):
@@ -416,10 +413,7 @@ class Entry(object):
         """
         headers, body = self._context.http.request(self._context.entry, headers=headers)
         self.representation = body
-        try:
-            self._etree = fromstring(body)
-        except ExpatError:
-            self._etree = None
+        self._etree = fromstring(body)
 
         self.edit_media = absolutize(self._context.entry, link_value(self._etree, ".", "edit-media")) 
 
