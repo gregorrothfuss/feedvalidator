@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <entry xmlns="http://www.w3.org/2005/Atom">
-<title>Iñtërnâtiônàlizætiøn</title>
-<id>tag:example.org,2003:3.2397</id>
+<title>Iñtërnâtiônàlizætiøn - %d</title>
+<id>tag:bitworking.org,2008-02-26:%s</id>
 <updated>2005-07-10T12:29:29Z</updated>
 <author>
 <name>Joe Gregorio</name>

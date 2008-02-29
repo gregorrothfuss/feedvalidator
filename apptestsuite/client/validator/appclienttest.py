@@ -5,34 +5,62 @@ __license__ = "MIT"
 
 import os 
 import sys
-
-sys.path.append(os.getcwd())
-
-CUR_DIR = os.path.split(os.path.abspath(__file__))[0]
-ATOM = "http://www.w3.org/2005/Atom"
-ATOM_LINK = "{%s}link" % ATOM
-ATOM_ENTRY = "{%s}entry" % ATOM
-ATOM_TITLE= "{%s}title" % ATOM
-
-APP = "http://www.w3.org/2007/app"
-APP_COLL = "{%s}collection" % APP
-APP_MEMBER_TYPE = "{%s}accept" % APP
-
 import httplib2
 try:
       from xml.etree.ElementTree import fromstring, tostring
 except:
       from elementtree.ElementTree import fromstring, tostring
 
-
-# By default we'll check the bitworking collection 
-INTROSPECTION_URI = "http://bitworking.org/projects/apptestsite/app.cgi/service/;service_document"
 import atompubbase
+from atompubbase.model import Entry, Collection, Service, Context, init_event_handlers
 import urlparse
 import cStringIO
 import sys
-import getopt
+from optparse import OptionParser
 import time
+import feedvalidator
+from feedvalidator import compatibility
+from mimeparse import mimeparse
+from xml.sax.saxutils import escape
+from feedvalidator.formatter.text_plain import Formatter as text_formatter
+from urllib import urlencode
+import xml.dom.minidom
+import random
+import base64
+
+# By default we'll check the bitworking collection 
+INTROSPECTION_URI = "http://bitworking.org/projects/apptestsite/app.cgi/service/;service_document"
+
+parser = OptionParser()
+parser.add_option("--credentials", dest="credentials",
+                    help="FILE that contains a name and password on separate lines with an optional third line with the authentication type of 'ClientLogin <service>'.",
+                    metavar="FILE")
+parser.add_option("--output", dest="output",
+                    help="FILE to store test results",
+                    metavar="FILE")
+parser.add_option("--verbose",
+                  action="store_true", 
+                  dest="verbose",
+                  default=False,
+                  help="Print extra information while running.")
+parser.add_option("--quiet",
+                  action="store_true", 
+                  dest="quiet",
+                  default=False,
+                  help="Do not print anything while running.")
+parser.add_option("--debug",
+                  action="store_true", 
+                  dest="debug",
+                  default=False,
+                  help="Print low level HTTP information while running.")
+parser.add_option("--html",
+                  action="store_true", 
+                  dest="html",
+                  default=False,
+                  help="Output is formatted in HTML")
+
+options, cmd_line_args = parser.parse_args() 
+
 
 # Restructure so that we use atompubbase
 # Add hooks that do validation of the documents at every step
@@ -42,57 +70,258 @@ import time
 # Need an object to keep track of the current state, i.e. the test and
 # request/response pair that each error/warning/informational is about.
 #
+# Need to track the desired output format.
+#
+# Might have to fix up the anchors that the html formatter produces.
+#
 # Create an httplib2 instance for atompubbase that has a memory based cache.
 
+atompubbase.model.init_event_handlers()
 
-import feedvalidator
-from feedvalidator import compatibility
-try:
-    from atompubbase.ErrorReporting import *
-except:
-    path = os.path.split(CUR_DIR)[0]
-    sys.path.insert(0, path)
-    from atompubbase.ErrorReporting import *
+class ClientLogin:
+  """
+  Perform ClientLogin up front, save the auth token, and then
+  register for all the PRE events so that we can add the auth token
+  to all requests.
+  """
 
-try:
-    from mimeparse import mimeparse
-except:
-    import atompubbase.mimeparse.mimeparse as mimeparse
+  def __init__(self, http, name, password, service):
+    auth = dict(accountType="HOSTED_OR_GOOGLE", Email=name, Passwd=password, service=service,
+                source='AppClientTest-%s' % __version__.split()[1] )
+    resp, content = http.request("https://www.google.com/accounts/ClientLogin", method="POST", body=urlencode(auth), headers={'Content-Type': 'application/x-www-form-urlencoded'})
+    lines = content.split('\n')
+    d = dict([tuple(line.split("=", 1)) for line in lines if line])
+    if resp.status == 403:
+        self.Auth = ""
+    else:
+        self.Auth = d['Auth']
+    atompubbase.events.register_callback("PRE", self.pre_cb)
 
-
-def usage(option=""):
-    print """Usage: appclienttest [OPTION] IntrospectionURI
-
-  -h, --help            Display this help message then exit.
-      --name=<name>     User name to use for authentication.
-      --password=<pw>   Password to use for authentication.
-      --debug=<n>       Print debugging information for n > 0.
-
-"""
-    if option:
-        print """!! %s !!""" % option
+  def pre_cb(self, headers, body, filters):
+    info("Added ClientLogin: %s" % self.Auth)
+    headers['authorization'] = 'GoogleLogin Auth=' + self.Auth 
 
 
-def validate_atom(testcase, content, baseuri):
-    retval = True
-    try:
-        events = feedvalidator.validateStream(cStringIO.StringIO(content), firstOccurrenceOnly=1,base=baseuri)['loggedEvents']
-    except feedvalidator.logging.ValidationFailure, vf:
-        events = [vf.event]
+def get_test_data(filename):
+  return unicode(file(os.path.join(os.path.abspath(os.path.dirname(__file__)),
+                                   filename), "r").read(), "utf-8")
 
-    filterFunc = getattr(compatibility, "A")
-    events = filterFunc(events)
-    if len(events):
-        from feedvalidator.formatter.text_plain import Formatter
-        output = Formatter(events)
-        testcase.report(MustUseValidAtom("\n".join(output) + content))
-        retval = False
-    return retval
+def get_test_data_raw(filename):
+  return file(os.path.join(os.path.abspath(os.path.dirname(__file__)),
+                                   filename), "r").read()
+
+class MemoryCache:
+  mem = {}
+
+  def set(self, key, value):
+    self.mem[key] = value
+
+  def get(self, key):
+    return self.mem.get(key, None)
+
+  def delete(self, key):
+    if key in self.mem:
+      del self.mem[key]
+
+
+REPRESENTATION = "Representation"
+CREATE_FAILED = "Create Failed"
+REMOVE_FAILED = "Remove Failed"
+UPDATE_FAILED = "Update Failed"
+CRED_FILE_INVALID = "Credentials file"
+SERVICE_DOCUMENT = "Service Document"
+HTTP = "HTTP"
+EXCEPTION = "Exception"
+SPECIFICATION = "Specification"
+
+class Recorder:
+  """
+  Records all the warning, errors, etc. and is able to
+  spit the results out as a text or html report.
+  """
+  transcript = [] # a list of (MSG_TYPE, message, details)
+  tests = []
+  html = True
+  verbosity = 0
+  has_errors = False
+
+  def __init__(self):
+    atompubbase.events.register_callback("POST_CREATE", self.create_validation_cb)
+    atompubbase.events.register_callback("POST_GET", self.get_check_response_cb)
+    atompubbase.events.register_callback("POST_GET", self.content_validation_cb)
+    atompubbase.events.register_callback("ANY", self.log_request_response)
+
+  def error(self, msg, detail):
+    has_errors = True
+    self.transcript.append(("Error", msg, detail))
+
+  def warning(self, msg, detail):
+    self.transcript.append(("Warning", msg, detail))
+
+  def info(self, detail):
+    self.transcript.append(("Info", "Info", detail))
+
+  def success(self, detail):
+    self.transcript.append(("Success", "", detail))
+
+  def log(self, msg, detail):
+    self.transcript.append(("Log", msg, detail))
+
+  def _end_test(self):
+    if self.transcript:
+      self.tests.append(self.transcript)
+      self.transcript = []
+
+  def begin_test(self, msg, detail):
+    self._end_test()
+    self.transcript.append(("Begin_Test", msg, detail))
+
+  def tostr(self):
+    self._end_test()
+    if self.html:
+      return self._tohtml()
+    else:
+      return self._totext()
+
+  def _tohtml(self):
+    resp = [u"""<!DOCTYPE HTML>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <link href="validator/res/base.css" type="text/css" rel="stylesheet">
+    <script type="text/javascript" src="validator/res/jquery-1.2.3.js"></script>
+    <script type="text/javascript" src="validator/res/report.js" ></script>
+    <title>AppClientTest - Results</title>
+  </head>
+<body>
+  <h1>Test Report</h1>
+  <dl>
+    <dt>Date</dt>
+    <dd>%s</dd>
+  </dl>
+  <div class='legend'>
+  <h3>Legend</h3>
+  <dl>
+     <dt><img src='validator/res/info.gif'> Informational</dt>
+     <dd>Information on what was being tested.</dd>
+     <dt><img src='validator/res/warning.gif'> Warning</dt>
+     <dd>Warnings indicate behavior that, while legal, may cause<br/>
+       either performance or interoperability problems in the field.</dd>
+     <dt><img src='validator/res/error.gif'> Error</dt>
+     <dd>Errors are violations of either the Atom, AtomPub<br/> or HTTP specifications.</dd>
+     <dt><img src='validator/res/log.gif'> Log</dt>
+     <dd>Detailed information on the transaction to help you<br/> debug your service.</dd>
+     <dt><img src='validator/res/success.gif'> Success</dt>
+     <dd>A specific sub-test has been passed successfully.</dd>
+     
+  </div>
+  """ % (time.asctime())] 
+    for transcript in self.tests:
+      (code, msg, detail) = transcript[0]
+      transcript = transcript[1:]
+      resp.append(u"<h2>%s</h2><p>%s</p>\n" % (msg, detail))
+      resp.append(u"<ol>\n")
+      resp.extend([u"  <li class='%s'><img src='validator/res/%s.gif'> %s <span class='%s'>%s</span></li>\n" %
+                   (code, code.lower(), (msg == 'Info') and ' ' or msg, code, detail) for (code, msg, detail) in transcript])
+      resp.append(u"</ol>\n")
+    return (u"".join(resp)).encode("utf-8")
+
+  def _totext(self):
+    resp = []
+    resp.extend(["  %s:%s %s\n" % (code, msg, detail) for (code, msg, detail) in self.transcript])
+    resp.append("\n")
+    return "".join(resp)
+
+  def _validate(self, headers, body):
+    if headers.status in [200, 201]:
+      baseuri = headers['content-location']
+      try:
+          events = feedvalidator.validateStream(cStringIO.StringIO(body),
+                                                firstOccurrenceOnly=1,
+                                                base=baseuri)['loggedEvents']
+      except feedvalidator.logging.ValidationFailure, vf:
+          events = [vf.event]
+
+      errors = [event for event in events if isinstance(event, feedvalidator.logging.Error)]
+      if errors:
+        self.error(REPRESENTATION, "\n".join(text_formatter(errors)))
+
+      warnings = [event for event in events if isinstance(event, feedvalidator.logging.Warning)]
+      if warnings:
+        self.warning(REPRESENTATION, "\n".join(text_formatter(warnings)))
+
+      if self.verbosity > 2:
+        infos = [event for event in events if isinstance(event, feedvalidator.logging.Info)]
+        if infos:
+          self.info("\n".join(text_formatter(infos)))
+
+  def content_validation_cb(self, headers, body, filters):
+    self._validate(headers, body)
+
+  def create_validation_cb(self, headers, body, filters):
+    self._validate(headers, body)
+
+  def get_check_response_cb(self, headers, body, filters):
+    """
+    For operations that should return 200, like get, put and delete.
+    """
+    if not headers.has_key('etag'):
+      self.warning(HTTP, "No ETag: header was sent with the response.")
+      if not headers.has_key('last-modified'):
+        self.warning(HTTP, "No Last-Modified: header was sent with the response.")
+    if headers.get('content-length', 0) > 0 and not headers.has_key('-content-encoding'):
+      self.warning(HTTP, "No Content-Encoding: header was sent with the response indicating that a compressed entity body was not returned.")
+
+  def log_request_response(self, headers, body, filters):
+    if "PRE" in filters:
+      direction = "Request"
+    else:
+      direction = "Response"
+    if headers:
+      headers_str = u"\n".join(["%s: %s" % (k, v) for (k, v) in headers.iteritems()])
+    else:
+      headers_str = u""
+    need_escape = True
+    if body == None or len(body) == 0:
+      body = u""
+    else:
+      if 'content-type' in headers:
+        mtype, subtype, params = mimeparse.parse_mime_type(headers['content-type'])
+        if subtype[-4:] == "+xml":
+          dom = xml.dom.minidom.parseString(body)
+          body = dom.toxml()
+          if len(body.splitlines()) < 2:
+            body = dom.toprettyxml()
+        elif 'charset' in params:
+          body = unicode(body, params['charset'])
+        elif mtype == 'image' and self.html:
+          body = "<img src='data:%s/%s;base64,%s'/>" % (mtype, subtype, base64.b64encode(body))
+          need_escape = False
+        else:          
+          body = "Could not safely serialize the body"          
+      else:
+        body = "Could not safely serialize the body"
+
+    if headers_str or body:
+      if self.html and need_escape:
+        body = escape(body)
+      if self.html:
+        log = u"<pre><code>\n" + escape(headers_str) + "\n\n" + body + u"</code></pre>"
+      else:
+        log = headers_str + "\n\n" + body
+      self.log(direction, log)
+
+
+recorder = Recorder()
+error    = recorder.error
+warning  = recorder.warning
+info     = recorder.info
+success  = recorder.success
+begin_test = recorder.begin_test
+
 
 class Test:
-    """Base class for all the tests. Adds basic
-    functionality of recording reports as they
-    are generated. Also has a 'run' member
+    """Base class for all the tests. Has a 'run' member
     function which runs over all member functions
     that begin with 'test' and executes them.
     """
@@ -102,289 +331,210 @@ class Test:
         self.collection_uri = ""
         self.entry_uri = ""
 
-    def report(self, r):
-        r.context = self.context 
-        if self.collection_uri:
-            r.context += "\n\n   Collection: %s" % self.collection_uri
-        if self.entry_uri:
-            r.context += "\n   Entry: %s" % self.entry_uri
-        self.reports.append(r)
-
     def run(self):
         methods = [ method for method in dir(self) if callable(getattr(self, method)) and method.startswith("test")]
         for method in methods:
-            print ".",
+            if not options.quiet:
+              print >>sys.stderr, ".",
             sys.stdout.flush()
             test_member_function = getattr(self, method)
             try:
                 self.description = str(test_member_function.__doc__)
                 self.context = method
-                test_member_function() 
+                begin_test(method.split("test", 1)[1].replace("_", " "), self.description)
+                test_member_function()
             except Exception, e:
                 import traceback
-                self.report(InternalErrorEncountered(str(e) + traceback.format_exc()))
-    
+                info("Internal error occured while running tests: " + str(e) + traceback.format_exc())
 
-CONTENT_WITH_SRC = """<?xml version="1.0" encoding="utf-8"?>
-<entry xmlns="http://www.w3.org/2005/Atom">
-  <title>This is a title</title>
-  <id>urn:uuid:1225c695-ffb8-4ebb-aaaa-80da354efa6a</id>
-  <updated>2005-09-02T10:30:00Z</updated>
-  <summary>Hi!</summary>
-  <author>
-    <name>Joe Gregorio</name>
-  </author>
-  <content
-     type="image/png"
-     src="http://bitworking.org/projects/atompubtest/client/helloworld.png" />
-</entry>
-"""
 
-CONTENT_WITH_OTHER = """<?xml version="1.0" encoding="utf-8"?>
-<entry xmlns="http://www.w3.org/2005/Atom">
-   <title>This should not be blank</title>
-   <id>urn:uuid:1225c695-ffb8-4ebb-aaaa-80da354efa6a</id>
-   <updated>2005-09-02T10:30:00Z</updated>
-   <author>
-     <name>Joe Gregorio</name>
-   </author>
-   <summary>Hi!</summary>
-   <content type="image/png" >
-iVBORw0KGgoAAAANSUhEUgAAAEYAAAALCAIAAABNimxhAAAAAXNSR0IArs4c6QAAAARnQU1BAACx
-jwv8YQUAAAAgY0hSTQAAeiYAAICEAAD6AAAAgOgAAHUwAADqYAAAOpgAABdwnLpRPAAAAThJREFU
-SEvdlD0OgzAMhdvbcgiOwAm4ADs7M2tXRkY2bkA/9UmW5SRQ2kpV6wEZx3bei3+u27Zd/kyMEkrQ
-ZfEi7oduCqmqCudlWdDneUYfxxF9XVd0TtP8OzdmYWQzRHwGOu99hlLXdUaj73v0tm1JCzF0Tr9A
-SZgMii+OZ25uAeU0Tbg1TUNgXddWGSzonGJPY5UZf8TfSLVVdr2OmuWgSn6g7DISIYYsbTxhuj0k
-fXv5q9PERNkEKBurUxpVcM1Z4djVw09RCik8w5RJaskOmIojNCJG7/ENFSjVv2R/i1Ko7A63LKVh
-GBSiKRJDhOYJ/tk3+jAlPSej/E7jWZNo12kxIH6QQtOGCtiv8BCoEX2l8fzsasTPrgcfQtfx6wdJ
-p6X1YN1h6M+th9Lq+FF7cRX+KB9g3wGfjZVSUSpSSwAAAABJRU5ErkJggg==
-</content>
-</entry>
-"""
-
-MIXED_TEXT_TYPES = """<?xml version="1.0" encoding="utf-8"?>
-<entry xmlns="http://www.w3.org/2005/Atom">
-   <title type="html">
-      This &lt;b>is&lt;/b> a title.
-   </title>
-   <id>urn:uuid:1225c695-ffb8-4ebb-aaaa-80da354efa6a</id>
-   <updated>2005-09-02T10:30:00Z</updated>
-   <author>
-     <name>Joe Gregorio</name>
-   </author>
-   <summary type="xhtml">
-      <div xmlns="http://www.w3.org/1999/xhtml">
-         Hello <b>World</b>!
-      </div>
-   </summary>
-   <content type="text" >This is just plain text content.
-   </content>
-</entry>
-"""
-
-# A missing Author makes this entry invalid
-NON_WELL_FORMED_ENTRY = """<?xml version="1.0" encoding="utf-8"?>
-<entry xmlns="http://www.w3.org/2005/Atom">
-  <title>This is a title</title>
-  <id>urn:uuid:1225c695-ffb8-4ebb-aaaa-80da354efa6a</id>
-  <updated>2005-09-02T10:30:00Z</updated>
-  <summary>Hi!</summary>
-"""
-
-def absolutize(baseuri, uri):
-    (scheme, authority, path, query, fragment) = httplib2.parse_uri(uri)
-    if authority == None:
-        uri = urlparse.urljoin(baseuri, uri)
-    return uri
-
+def check_order_of_entries(entries, order):       
+  info("Check order of entries in the collection document")
+  failed = False
+  for context, i in zip(entries, order):
+    # Need code to extract text from an XHTML title
+    title = Entry(context).etree().find(atompubbase.model.ATOM_TITLE)
+    if None == title:
+      error(REPRESENTATION, "Failed to preserve title")
+      failed = True
+    else:
+      found_i = int(title.text.split()[-1])
+      if found_i != i:
+        error(SPECIFICATION, "Failed to preserve order of entries, was expecting %d, but found %d" % (i, found_i))
+        failed = True
+  if not failed:
+    success("Order of entries is correct")
+  
 
 class EntryCollectionTests(Test):
-    def __init__(self, entry_coll_uri, http):
+    def __init__(self, collection):
         Test.__init__(self)
-        self.entry_coll_uri = entry_coll_uri
-        self.collection_uri = entry_coll_uri
-        self.http = http
-        print "Testing: %s\n" % entry_coll_uri
+        self.collection = collection 
 
-    def setUp(self):
-        time.sleep(1)
+    def testBasic_Entry_Manipulation(self):
+        """Add and remove three entries to the collection"""
+        info("Service Document: %s" % self.collection.context().collection)
+        info("Count the entries in the collection")
+        num_entries = len(list(self.collection.iter()))
+        body = get_test_data("i18n.atom").encode("utf-8")
 
-    def enumerate_collection(self):
-        relnext = [self.entry_coll_uri]
-        retval = {} 
-        while relnext:
-            uri = absolutize(self.entry_coll_uri, relnext[0])
-            self.entry_uri = uri
-            (response, content) = self.http.request(uri, "GET", headers = {"Cache-Control": "max-age=0"})
-            if not validate_atom(self, content, uri):
-                return {}
-            tree = fromstring(content)
-            for e in tree.findall(ATOM_ENTRY):
-                reledit = [l.get('href', '') for l in e.findall(ATOM_LINK) if l.get('rel', '') == 'edit'] 
-                for t in reledit:
-                    retval[absolutize(self.entry_coll_uri, t)] = e 
-            relnext = [l.get('href', '') for l in tree.findall(ATOM_LINK) if l.get('rel', '') == 'next'] 
-        return retval
+        # Add in a slug and category if allowed.
+        slugs = []
 
-    def testHttpConformance(self):
-        """Do a simple GET on a collection
-        feed and look for suggested HTTP
-        practice."""
-        (response, content) = self.http.request(self.entry_coll_uri)
-        if not response.has_key('etag'):
-            self.report(ShouldSupportCacheValidators("No ETag: header was sent with the response."))
-            if not response.has_key('last-modified'):
-                self.report(ShouldSupportCacheValidators("No Last-Modified: header was sent with the response."))
-        if not response.has_key('-content-encoding'):
-            self.report(ShouldSupportCompression("No Content-Encoding: header was sent with the response indicating that a compressed entity body was not returned."))
-
-    def testContentWithSrc(self):
-        """POST a good Atom Entry with a content/@src
-        attribute set and with the right mime-type.
-        Ensure that the entry is added to the collection.
-        """
-        toc = self.enumerate_collection()
-        startnum = len(toc)
-        # Add a new entry
-        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_SRC, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
-
-        if response.status != 201:
-            self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
-        if not response.has_key('location'):
-            self.report(EntryCreationMustReturnLocationHeader("Header is completely missing"))
+        
+        for i in range(3):
+          info("Create new entry #%d" % (i+1))
+          slugs.append("".join([random.choice("abcdefghijkl") for x in range(10)]))
+          h, b = self.collection.create(headers = {
+            'content-type': 'application/atom+xml',
+            'slug': slugs[i]
+            },
+            body = body % (i+1, repr(time.time())))
+          if h.status != 201:
+            error(CREATE_FAILED, "Entry creation failed with status: %d %s" % (h.status, h.reason))
             return
-
-        toc = self.enumerate_collection()
-        # Make sure it was added to the collection
-        if startnum >= len(toc):
-            self.report(EntryCreationMustBeReflectedInFeed("Number of entries went from %d before to %d entries after the entry was created." % (startnum, len(toc))))
-
-        # The location header should match the link/@rel="edit"
-        edituri = response['location']
-        if edituri not in toc:
-            self.report(LocationHeaderMustMatchLinkRelEdit("The Location: header value %s can't be found in %s" % (response['location'], str(toc))))
-
-        (response, content) = self.http.request(edituri, "GET", headers = {"Cache-Control": "max-age=0"})
-        if response.status != 200:
-            self.report(GetFailedOnMemberResource("Expected an HTTP status code of 200 but instead received %d" % response.status))
-        validate_atom(self, content, edituri)
-
-        # Cleanup
-        (response, content) = self.http.request(edituri, "DELETE")
-        if response.status >= 400:
-            self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
-        toc = self.enumerate_collection()
-
-        if startnum != len(toc):
-            self.report(EntryDeletionMustBeReflectedInFeed("Number of entries went from %d before to %d entries after the entry was deleted." % (startnum, len(toc))))
-        if edituri in toc:
-            self.report(EntryDeletionMustBeReflectedInFeed("The URI for the entry just deleted <%s> must not appear in the feed after the entry is deleted." % edituri))
-
-    def testContentWithBase64Content(self):
-        """ POST a good Atom Entry with an entry 
-        whose atom:content is a base64 encoded png.
-        """
-        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_OTHER, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
-        if response.status != 201:
-            self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
+          if 'content-location' not in h:
+            error(SPECIFICATION, "Content-Location not returned in response headers.")            
+        info("Count the entries in the collection after adding three.")
+        entries = list(self.collection.iter())
+        num_entries_after = len(entries)
+        if num_entries_after != num_entries + 3:
+          warning(CREATE_FAILED, "All three entries did not appear in the collection.")
+          return
         else:
-            edituri = response['location']
-            (response, content) = self.http.request(edituri, "DELETE")
-            if response.status >= 400:
-                self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
+          success("Added three entries.")
 
-    def testMixedTextConstructs(self):
-        """ POST a good Atom Entry with an entry 
-        whose Text Constructs contain a mix of types.
-        """
-        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=MIXED_TEXT_TYPES, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
-        if response.status != 201:
-            self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
-        edituri = response['location']
-        (response, content) = self.http.request(edituri, "DELETE")
-        if response.status >= 400:
-            self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
+        # Confirm the order
+        check_order_of_entries(entries, [3,2,1])
+        
+        # Retrieve an entry
+        entry = Entry(entries[1])
+        e = entry.etree()
 
-    def testNonWellFormedEntry(self):
-        """ POST an invalid Atom Entry 
-        """
-        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=NON_WELL_FORMED_ENTRY, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
-        if response.status < 400:
-            self.report(MustRejectNonWellFormedAtom("Actually returned an HTTP status code %d" % response.status))
+        # Check the slug
+        slugified = [link for link in e.findall("{%s}link" % atompubbase.model.ATOM)
+                       if ('rel' not in link.attrib or link.attrib['rel'] == "alternate") and slugs[1] in link.attrib['href']]
+        if not slugified:
+          warning("SPECIFICATION", "Slug was ignored")
+        else:
+          success("Slug was honored")
 
-    def testI18n(self):
-        """ POST a fully utf-8 Atom Entry 
-        """
-        i18n = file(os.path.join(CUR_DIR, "i18n.atom"), "r").read()
-        tree = fromstring(i18n)
-        title_sent = tree.findall(".//" + ATOM_TITLE)[0].text
-        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=i18n, headers={'Content-Type': 'application/atom+xml', 'Content-Length' : str(len(i18n)), 'Accept': '*/*'})
-        if response.status >= 400:
-            self.report(ServerShouldHandleI18NContent("Actually returned an HTTP status code %d" % response.status))
-        if response.status != 201:
-            self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
-        location = response['location']
-        (response, content) = self.http.request(location, "GET")
-        tree = fromstring(content)
-        title_received = tree.findall(".//" + ATOM_TITLE)[0].text
-        tree.findall(".//" + ATOM_TITLE)[0].text = "Non Internationalized"
-        if title_sent != title_received:
-            self.report(ServerShouldHandleI18NContent(u"%s != %s" % (title_sent, title_received)))
-        ni18n = tostring(tree)
-        (response, content) = self.http.request(location, "PUT", body=ni18n, headers={'Content-Length' : str(len(ni18n)), 'Content-Type' : 'application/atom+xml'})
-        if response.status != 200:
-            self.report(EntryUpdateFailed("Actually returned an HTTP status code %d" % response.status))
+        # Check the edit link
+        editlink = [link for link in e.findall("{%s}link" % atompubbase.model.ATOM)
+                       if ("edit" == link.attrib.get('rel', None))]
+        if not editlink:
+          warning("SPECIFICATION", "Member Entry did not contain an atom:link element with a relation of 'edit'")
+        else:
+          success("Member contained an 'edit' link")
 
-        (response, content) = self.http.request(location, "GET")
-        tree = fromstring(content)
-        title_received = tree.findall(".//" + ATOM_TITLE)[0].text
-        if title_received != "Non Internationalized":
-            self.report(EntryUpdateFailed("Title not updated. %s != %s" % (title_received, "Non Internationalized")))
+          
+        
+        e.find(atompubbase.model.ATOM_TITLE).text = "Internationalization - 2"
+        info("Update entry #2 and write back to the collection")
+        h, b = entry.put(headers={'content-type': 'application/atom+xml'}, body = tostring(e))
+        if h.status != 200:
+          error(UPDATE_FAILED, "Failed to accept updated entry")
+        else:
+          success("Updated entry #2")
 
+        
+        # Confirm new order
+        check_order_of_entries(self.collection.iter(), [2,3,1])
 
-        (response, content) = self.http.request(location, "DELETE")
-
-    def testDoubleAddWithSameAtomId(self):
-        """POST two Atom entries with the same atom:id 
-        to the collection. The response for both MUST be
-        201 and two new entries must be created."""
-        toc = self.enumerate_collection()
-        startnum = len(toc)
-        # Add a new entry
-        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_SRC, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
-        if response.status != 201:
-            self.report(EntryCreationMustReturn201("Actually returned an HTTP status code %d" % response.status))
+        # Remove Entries
+        for context in entries[0:3]:
+          info("Remove entry")
+          h, b = Entry(context).delete()
+          if h.status != 200:
+            error(REMOVE_FAILED, "Entry removal failed with status: %d %s" % (h.status, h.reason))
             return
-        toc = self.enumerate_collection()
-        # Make sure it was added to the collection
-        if startnum >= len(toc):
-            self.report(EntryCreationMustBeReflectedInFeed("Number of entries went from %d before to %d entries after the entry was created." % (startnum, len(toc))))
-            return
-        # The location header should match the link/@rel="edit"
-        edituri = response['location']
+        success("Removed three entries.")
 
-        time.sleep(2)
-        (response, content) = self.http.request(self.entry_coll_uri, "POST", body=CONTENT_WITH_SRC, headers={'Content-Type': 'application/atom+xml', 'Accept': '*/*'})
-        if response.status != 201:
-            self.report(EntryCreationMustReturn201("When POSTing a second entry with the same atom:id of an entry we just POSTed the server returned an HTTP status code %d" % response.status))
-            return
 
-        toc = self.enumerate_collection()
-        # Make sure it was added to the collection
-        if startnum+1 >= len(toc):
-            self.report(EntryCreationMustBeReflectedInFeed("Number of entries went from %d before to %d entries after the entry was created." % (startnum+1, len(toc))))
-        edituri2 = response['location']
 
-        if edituri == edituri2:
-            self.report(EntryCreationMustReturnLocationHeader("Non unique Location: header value returned in a 201 response. <%s>" % edituri))
+class MediaCollectionTests(Test):
+    def __init__(self, collection):
+        Test.__init__(self)
+        self.collection = collection 
 
-        # Cleanup
-        (response, content) = self.http.request(edituri, "DELETE")
-        if response.status >= 400:
-            self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
-        (response, content) = self.http.request(edituri2, "DELETE")
-        if response.status >= 400:
-            self.report(EntryDeletionFailed("HTTP Status %d" % response.status))
+    def testBasic_Media_Manipulation(self):
+        """Add and remove an image in the collection"""
+        info("Service Document: %s" % self.collection.context().collection)
+        info("Count the entries in the collection")
+        num_entries = len(list(self.collection.iter()))
+        
+        body = get_test_data_raw("success.gif")
+        
+        info("Create new media entry")
+        slug = "".join([random.choice("abcdefghijkl") for x in range(10)])
+        h, b = self.collection.create(headers = {
+          'content-type': 'image/gif',
+          'slug': slug
+          },
+          body = body)
+        if h.status != 201:
+          error(CREATE_FAILED, "Entry creation failed with status: %d %s" % (h.status, h.reason))
+          return
+        if 'content-location' not in h:
+          error(SPECIFICATION, "Content-Location not returned in response headers.")            
+        info("Count the entries in the collection after adding three.")
+        entries = list(self.collection.iter())
+        num_entries_after = len(entries)
+        if num_entries_after != num_entries + 1:
+          warning(CREATE_FAILED, "New media entry did not appear in the collection.")
+          return
+        else:
+          success("Added Media Entry")
+
+        entry = Entry(entries[0])
+        e = entry.etree()
+
+        # Check the slug
+        slugified = [link for link in e.findall("{%s}link" % atompubbase.model.ATOM)
+                       if ('rel' not in link.attrib or link.attrib['rel'] == "alternate") and slug in link.attrib['href']]
+        if not slugified:
+          warning("SPECIFICATION", "Slug was ignored")
+        else:
+          success("Slug was honored")
+
+
+        # Check the edit link
+        editlink = [link for link in e.findall("{%s}link" % atompubbase.model.ATOM)
+                       if ("edit" == link.attrib.get('rel', None))]
+        if not editlink:
+          warning("SPECIFICATION", "Member Entry did not contain an atom:link element with a relation of 'edit'")
+        else:
+          success("Member contained an 'edit' link")
+          
+
+        # Check the edit-media link
+        editmedialink = [link for link in e.findall("{%s}link" % atompubbase.model.ATOM)
+                       if ("edit-media" == link.attrib.get('rel', None))]
+        if not editmedialink:
+          warning("SPECIFICATION", "Member Entry did not contain an atom:link element with a relation of 'edit-media'")
+        else:
+          success("Member contained an 'edit-media' link")
+          
+
+        
+        e.find(atompubbase.model.ATOM_TITLE).text = "Success"
+        info("Update Media Link Entry and write back to the collection")
+        h, b = entry.put(headers={'content-type': 'application/atom+xml'}, body = tostring(e))
+        if h.status != 200:
+          error(UPDATE_FAILED, "Failed to accept updated entry")
+        else:
+          success("Updated Media Link Entry")
+
+        
+        # Remove Entry
+        info("Remove entry")
+        h, b = entry.delete()
+        if h.status != 200:
+          error(REMOVE_FAILED, "Entry removal failed with status: %d %s" % (h.status, h.reason))
+          return
+        success("Removed Media Entry")
+
+
 
 class TestIntrospection(Test):
     def __init__(self, uri, http):
@@ -392,96 +542,68 @@ class TestIntrospection(Test):
         self.http = http
         self.introspection_uri  = uri
 
-    def testEachEntryCollection(self):
-        """Run over each entry collection listed
-in an Introspection document and
-run the Entry collection tests
-against it."""
-        response, content = self.http.request(self.introspection_uri)
-        # Add a validation step for the introspection document itself.
-        tree = fromstring(content)
-        collections = list(tree.findall(".//" + APP_COLL))
-        for coll in collections:
-            coll_type = [t for t in coll.findall(APP_MEMBER_TYPE) if mimeparse.best_match([t.text], 'application/atom+xml;type=entry')] 
-            if coll_type:
-                test = EntryCollectionTests(absolutize(self.introspection_uri, coll.get('href')), self.http)
-                test.run()
-                self.reports.extend(test.reports)
-                break
-        if 0 == len(collections):
-            print "Didn't find any collections"
+    def testEntry_Collection(self):
+        """Find the first entry collection listed in an Introspection document and run the Entry collection tests against it."""
+        context = Context(self.http, self.introspection_uri)
+        service = Service(context)
+        entry_collections = list(service.iter_match("application/atom+xml;type=entry"))
+          
+        if 0 == len(entry_collections):
+            warning(SERVICE_DOCUMENT, "Didn't find any entry collections to test")
+        else:
+          test = EntryCollectionTests(Collection(entry_collections[0]))
+          test.run()
 
-def format(r):
-    return """----------------------------------------
-%s:
-   %s
-
-Context: 
-   %s
-
-Details: 
-   %s
-
-""" % (r.__class__.__name__, r.text, r.context, r.extra)
-
-def print_report(reports, reportclass):
-    matching = [r for r in reports if isinstance(r, reportclass)]
-    if matching:
-        print "\n".join([format(r) for r in matching])
-    else:
-        print "  No problems found."
-
+        media_collections = list(service.iter_match("image/gif"))
+          
+        if 0 == len(media_collections):
+            warning(SERVICE_DOCUMENT, "Didn't find any media collections that would accept GIF images")
+        else:
+          test = MediaCollectionTests(Collection(media_collections[0]))
+          test.run()
 
 def main():
+    if options.debug:
+        httplib2.debuglevel = 5
+    if options.verbose:
+        recorder.verbosity = 3
+    if options.html:
+        recorder.html = True
 
-    options = ["help", "name=", "password=", "debug="]
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], "h", options )
-    except getopt.GetoptError:
-        # print help information and exit:
-        usage()
-        sys.exit(2)
-    name = password = None
-    for o, a in opts:
-        if o == "--name":
-            name = a
-        if o == "--password":
-            password = a
-        if o == "--debug":
-            httplib2.debuglevel = int(a)
-        if o in ["h", "--help"]:
-            usage()
-            sys.exit()
-            
+    http = httplib2.Http(MemoryCache())
+    http.force_exception_to_status_code = False
 
-    http = httplib2.Http(".cache")
-
-    if name:
-        print "%s: %s" % (name, password)
+    if options.credentials:
+      parts = file(options.credentials, "r").read().splitlines()
+      if len(parts) == 2:
+        name, password = parts
         http.add_credentials(name, password)
-    if not args:
-        args = [INTROSPECTION_URI]
-    for target_uri in args:
-        print "Atom Client Tests"
-        print "-----------------"
-        print ""
-        print "Testing the service at <%s>" % target_uri
-        print ""
-        print ""
-        print "Running: ",
-        test = TestIntrospection(target_uri, http)
-        test.run()
-        reports = test.reports
-        print ""
-        print "== Errors =="
-        print_report(reports, Error)
-        print "== Warnings =="
-        print_report(reports, Warning)
-        print "== Suggestions =="
-        print_report(reports, Suggestion)
-        if not reports:
-            print "Success!"
+      elif len(parts) == 3:
+        name, password, authtype = parts 
+        authname, service = authtype.split()
+        if authname != "ClientLogin":
+          error(CRED_FILE, "Unknown type of authentication: %s ['ClientLogin' is the only good value at this time.]" % cl)
+          return
+        cl = ClientLogin(http, name, password, service)
+      else:
+        error(CRED_FILE, "Wrong format for credentials file")
 
+    global cmd_line_args
+    if not cmd_line_args:
+      cmd_line_args = [INTROSPECTION_URI]
+    for target_uri in cmd_line_args:
+      if not options.quiet:
+        print >>sys.stderr, "Testing the service at <%s>" % target_uri
+        print >>sys.stderr, "Running: ",
+      test = TestIntrospection(target_uri, http)
+      test.run()
+    
+    outfile = sys.stdout
+    if options.output:
+      outfile = file(options.output, "w")
+
+    print >>outfile, recorder.tostr()
+    return int(recorder.has_errors)
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
