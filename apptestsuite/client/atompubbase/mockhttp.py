@@ -15,7 +15,7 @@ class MockHttp:
 
     def request(self, uri, method="GET", body=None, headers=None, redirections=5):
         path = urlparse.urlparse(uri)[2]
-        fname = os.path.join(HTTP_SRC_DIR, method, path[1:])
+        fname = os.path.join(HTTP_SRC_DIR, method, path.strip("/") + ".file")
         if os.path.exists(fname):
             f = file(fname, "r")
             response = message_from_file(f)
