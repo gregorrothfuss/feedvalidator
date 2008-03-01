@@ -70,6 +70,12 @@ ATOM_TITLE= "{%s}title" % ATOM
 APP_COLL = "{%s}collection" % APP
 APP_MEMBER_TYPE = "{%s}accept" % APP
 
+class ParseException(Exception):
+    def __init__(self, headers, body):
+        self.headers = headers
+        self.body = body
+    def __str__(self):
+        return "XML is non-well-formed"
 
 def absolutize(baseuri, uri):
     """
@@ -208,7 +214,10 @@ class Service(object):
         headers, body = self.context.http.request(self.context.service, headers=headers)
         if headers.status == 200:
             self.representation = body
-            self._etree = fromstring(body)
+            try:
+                self._etree = fromstring(body)
+            except xml.parsers.expat.ExpatError:
+                raise ParseException(headers, body)
         return (headers, body)
 
     def etree(self):
@@ -277,7 +286,10 @@ class Collection(object):
     def _record_next(self, base_uri, headers, body):
         if headers.status == 200:
             self.representation = body
-            self._etree = fromstring(body)
+            try:
+                self._etree = fromstring(body)
+            except xml.parsers.expat.ExpatError:
+                raise ParseException(headers, body)
             self.next = link_value(self._etree, ".", "next")
             if self.next:
                 self.next = absolutize(base_uri, self.next) 
@@ -413,7 +425,12 @@ class Entry(object):
         """
         headers, body = self._context.http.request(self._context.entry, headers=headers)
         self.representation = body
-        self._etree = fromstring(body)
+
+        try:
+            self._etree = fromstring(body)
+        except xml.parsers.expat.ExpatError:
+            raise ParseException(headers, body)
+        
 
         self.edit_media = absolutize(self._context.entry, link_value(self._etree, ".", "edit-media")) 
 

@@ -30,3 +30,27 @@ class MockHttp:
         pass
 
 
+class MockRecorder(httplib2.Http):
+    def __init__(self, h, directory):
+        self.h = h
+        self.directory
+        
+    def request(self, uri, method="GET", body=None, headers=None, redirections=5):
+        headers, body = self.h.request(uri, method, body, headers, redirections)
+        path = urlparse.urlparse(uri)[2]
+        fname = os.path.join(self.directory, method, path[1:])
+        dirname = os.path.dirname(fname)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
+
+        f = file(fname, "w")
+        f.write(
+            "\r\n".join(["%s: %s" % (key, value) for key, value in headers.iteritems()])
+            )
+        f.write("\r\n\r\n")
+        f.write(body)
+        f.close()
+        return (headers, body)
+
+    def add_credentials(self, name, password):
+        h.add_credentials(name, password)
