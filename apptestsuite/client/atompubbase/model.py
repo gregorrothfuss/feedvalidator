@@ -216,7 +216,7 @@ class Service(object):
             self.representation = body
             try:
                 self._etree = fromstring(body)
-            except xml.parsers.expat.ExpatError:
+            except ExpatError:
                 raise ParseException(headers, body)
         return (headers, body)
 
@@ -288,7 +288,7 @@ class Collection(object):
             self.representation = body
             try:
                 self._etree = fromstring(body)
-            except xml.parsers.expat.ExpatError:
+            except ExpatError:
                 raise ParseException(headers, body)
             self.next = link_value(self._etree, ".", "next")
             if self.next:
@@ -428,7 +428,7 @@ class Entry(object):
 
         try:
             self._etree = fromstring(body)
-        except xml.parsers.expat.ExpatError:
+        except ExpatError:
             raise ParseException(headers, body)
         
 
