@@ -27,6 +27,7 @@ from urllib import urlencode
 import xml.dom.minidom
 import random
 import base64
+import urllib
 
 # By default we'll check the bitworking collection 
 INTROSPECTION_URI = "http://bitworking.org/projects/apptestsite/app.cgi/service/;service_document"
@@ -291,10 +292,19 @@ class Recorder:
       if 'content-type' in headers:
         mtype, subtype, params = mimeparse.parse_mime_type(headers['content-type'])
         if subtype[-4:] == "+xml":
-          dom = xml.dom.minidom.parseString(body)
-          body = dom.toxml()
-          if len(body.splitlines()) < 2:
-            body = dom.toprettyxml()
+          try:
+            dom = xml.dom.minidom.parseString(body)
+            body = dom.toxml()
+            if len(body.splitlines()) < 2:
+              body = dom.toprettyxml()            
+          except xml.parsers.expat.ExpatError:
+            if 'charset' in params:
+              try:
+                body = unicode(body, params['charset'])
+              except UnicodeDecodeError:
+                body = urllib.quote(body)
+            else:
+              body = urllib.quote(body)
         elif 'charset' in params:
           body = unicode(body, params['charset'])
         elif mtype == 'image' and self.html:
