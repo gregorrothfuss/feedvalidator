@@ -38,7 +38,7 @@ class MockRecorder(httplib2.Http):
     def request(self, uri, method="GET", body=None, headers=None, redirections=5):
         headers, body = self.h.request(uri, method, body, headers, redirections)
         path = urlparse.urlparse(uri)[2]
-        fname = os.path.join(self.directory, method, path.strip("/"))
+        fname = os.path.join(self.directory, method, path.strip("/") + ".file")
         dirname = os.path.dirname(fname)
         if not os.path.exists(dirname):
             os.makedirs(dirname)
