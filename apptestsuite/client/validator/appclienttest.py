@@ -12,7 +12,7 @@ except:
       from elementtree.ElementTree import fromstring, tostring
 
 import atompubbase
-from atompubbase.model import Entry, Collection, Service, Context, init_event_handlers
+from atompubbase.model import Entry, Collection, Service, Context, init_event_handlers, ParseException
 import urlparse
 import cStringIO
 import sys
@@ -346,7 +346,8 @@ class Test:
                 self.context = method
                 begin_test(method.split("test", 1)[1].replace("_", " "), self.description)
                 test_member_function()
-            except xml.parsers.expat.ExpatError:
+            except ParseException, e:
+                recorder.log_request_response(e.headers, e.body, set(["POST"]))
                 error(REPRESENTATION, "Not well-formed XML")
             except Exception, e:
                 import traceback
@@ -398,8 +399,12 @@ class EntryCollectionTests(Test):
           if h.status != 201:
             error(CREATE_FAILED, "Entry creation failed with status: %d %s" % (h.status, h.reason))
             return
+          if 'location' not in h:
+            error(SPECIFICATION, "Location: not returned in response headers.")            
           if 'content-location' not in h:
-            error(SPECIFICATION, "Content-Location not returned in response headers.")            
+            warning(SPECIFICATION, "Content-Location: not returned in response headers.")
+          if len(body) == 0:
+            warning(SPECIFICATION, "Atom Entry not returned on member creation.")            
         info("Count the entries in the collection after adding three.")
         entries = list(self.collection.iter())
         num_entries_after = len(entries)
@@ -480,8 +485,13 @@ class MediaCollectionTests(Test):
         if h.status != 201:
           error(CREATE_FAILED, "Entry creation failed with status: %d %s" % (h.status, h.reason))
           return
+        if 'location' not in h:
+          error(SPECIFICATION, "Location: not returned in response headers.")            
         if 'content-location' not in h:
-          error(SPECIFICATION, "Content-Location not returned in response headers.")            
+          warning(SPECIFICATION, "Content-Location: not returned in response headers.")
+        if len(body) == 0:
+          warning(SPECIFICATION, "Atom Entry not returned on member creation.")            
+
         info("Count the entries in the collection after adding three.")
         entries = list(self.collection.iter())
         num_entries_after = len(entries)
@@ -592,6 +602,9 @@ def main(options, cmd_line_args):
         cl = ClientLogin(http, name, password, service)
       else:
         error(CRED_FILE, "Wrong format for credentials file")
+
+    from atompubbase.mockhttp import MockRecorder
+    http = MockRecorder(http, "./validator/rawtestdata/")
 
     if not cmd_line_args:
       cmd_line_args = [INTROSPECTION_URI]
