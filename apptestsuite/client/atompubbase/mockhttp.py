@@ -33,7 +33,7 @@ class MockHttp:
 class MockRecorder(httplib2.Http):
     def __init__(self, h, directory):
         self.h = h
-        self.directory
+        self.directory = directory
         
     def request(self, uri, method="GET", body=None, headers=None, redirections=5):
         headers, body = self.h.request(uri, method, body, headers, redirections)
