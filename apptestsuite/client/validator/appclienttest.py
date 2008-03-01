@@ -603,8 +603,8 @@ def main(options, cmd_line_args):
       else:
         error(CRED_FILE, "Wrong format for credentials file")
 
-    from atompubbase.mockhttp import MockRecorder
-    http = MockRecorder(http, "./validator/rawtestdata/")
+    #from atompubbase.mockhttp import MockRecorder
+    #http = MockRecorder(http, "./validator/rawtestdata/")
 
     if not cmd_line_args:
       cmd_line_args = [INTROSPECTION_URI]
