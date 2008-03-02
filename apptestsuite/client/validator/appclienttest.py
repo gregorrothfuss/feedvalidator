@@ -59,6 +59,15 @@ parser.add_option("--html",
                   dest="html",
                   default=False,
                   help="Output is formatted in HTML")
+parser.add_option("--record",
+                  dest="record",
+                  metavar="DIR",
+                  help="Record all the responses to be used later in playback mode.")
+parser.add_option("--playback",
+                  dest="playback",
+                  metavar="DIR",
+                  help="Playback responses stored from a previous run.")
+
 
 options, cmd_line_args = parser.parse_args() 
 
@@ -615,8 +624,13 @@ def main(options, cmd_line_args):
       else:
         error(CRED_FILE, "Wrong format for credentials file")
 
-    #from atompubbase.mockhttp import MockRecorder
-    #http = MockRecorder(http, "./validator/rawtestdata/")
+    if options.record:
+      from atompubbase.mockhttp import MockRecorder
+      http = MockRecorder(http, options.record)
+    elif options.playback:
+      from atompubbase.mockhttp import MockHttp
+      http = MockHttp(options.playback)
+      
 
     if not cmd_line_args:
       cmd_line_args = [INTROSPECTION_URI]
