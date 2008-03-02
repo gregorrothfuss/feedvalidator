@@ -1,9 +1,10 @@
 import urlparse
+import urllib
 import httplib2
 from email import message_from_string, message_from_file
 import os
 
-HTTP_SRC_DIR = "./tests/"
+
 
 class MockHttp:
     """
@@ -19,7 +20,7 @@ class MockHttp:
         counter += 1
         self.hit_counter[method+uri] = counter
         path = urlparse.urlparse(uri)[2]
-        fname = os.path.join(self.directory, method, path.strip("/") + ".file")
+        fname = os.path.join(self.directory, method, urllib.quote(path.strip("/")) + ".file")
         fname_next = fname + "." + str(counter)
         if os.path.exists(fname_next):
             fname = fname_next
@@ -49,7 +50,7 @@ class MockRecorder(httplib2.Http):
         self.hit_counter[method+uri] = counter
         headers, body = self.h.request(uri, method, body, headers, redirections)
         path = urlparse.urlparse(uri)[2]
-        fname = os.path.join(self.directory, method, path.strip("/") + ".file")
+        fname = os.path.join(self.directory, method, urllib.quote(path.strip("/")) + ".file")
         if counter >= 2:
             fname = fname + "." + str(counter)
         dirname = os.path.dirname(fname)
