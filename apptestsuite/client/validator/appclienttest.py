@@ -414,7 +414,9 @@ class EntryCollectionTests(Test):
           if 'content-location' not in h:
             warning(SPECIFICATION, "Content-Location: not returned in response headers.")
           if len(body) == 0:
-            warning(SPECIFICATION, "Atom Entry not returned on member creation.")            
+            warning(SPECIFICATION, "Atom Entry not returned on member creation.")
+          if i < 2:
+            time.sleep(1.1)
         info("Count the entries in the collection after adding three.")
         entries = list(self.collection.iter())
         num_entries_after = len(entries)
