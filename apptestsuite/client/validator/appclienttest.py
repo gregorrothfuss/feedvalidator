@@ -298,13 +298,13 @@ class Recorder:
             if len(body.splitlines()) < 2:
               body = dom.toprettyxml()            
           except xml.parsers.expat.ExpatError:
-            if 'charset' in params:
+            try:
+              body = unicode(body, params.get('charset', 'utf-8'))
+            except UnicodeDecodeError:
               try:
-                body = unicode(body, params['charset'])
+                body = unicode(body, 'iso-8859-1')
               except UnicodeDecodeError:
                 body = urllib.quote(body)
-            else:
-              body = urllib.quote(body)
         elif 'charset' in params:
           body = unicode(body, params['charset'])
         elif mtype == 'image' and self.html:
