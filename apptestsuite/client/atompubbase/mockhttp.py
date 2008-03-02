@@ -14,9 +14,9 @@ class MockHttp:
         self.hit_counter = {}
 
     def request(self, uri, method="GET", body=None, headers=None, redirections=5):
-        counter = self.hit_counter.get(uri, 0)
+        counter = self.hit_counter.get(method+uri, 0)
         counter += 1
-        self.hit_counter[uri] = counter
+        self.hit_counter[method+uri] = counter
         path = urlparse.urlparse(uri)[2]
         fname = os.path.join(HTTP_SRC_DIR, method, path.strip("/") + ".file")
         fname_next = fname + "." + str(counter)
@@ -43,9 +43,9 @@ class MockRecorder(httplib2.Http):
         self.hit_counter = {}
         
     def request(self, uri, method="GET", body=None, headers=None, redirections=5):
-        counter = self.hit_counter.get(uri, 0)
+        counter = self.hit_counter.get(method+uri, 0)
         counter += 1
-        self.hit_counter[uri] = counter
+        self.hit_counter[method+uri] = counter
         headers, body = self.h.request(uri, method, body, headers, redirections)
         path = urlparse.urlparse(uri)[2]
         fname = os.path.join(self.directory, method, path.strip("/") + ".file")
