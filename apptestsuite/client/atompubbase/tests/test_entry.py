@@ -2,17 +2,18 @@ import unittest
 from model import Context, Service, Collection, Entry
 from mockhttp import MockHttp
 
+HTTP_SRC_DIR = "./tests/"
 
 class Test(unittest.TestCase):
     def test_get(self):
-        context = Context(http = MockHttp(), entry = "http://example.org/entry/67")
+        context = Context(http = MockHttp(HTTP_SRC_DIR), entry = "http://example.org/entry/67")
         entry = Entry(context)
         (headers, body) = entry.get()
         self.assertEqual(200, headers.status)
         self.assertFalse(entry.has_media())
 
     def test_put(self):
-        context = Context(http = MockHttp(), entry = "http://example.org/entry/67")
+        context = Context(http = MockHttp(HTTP_SRC_DIR), entry = "http://example.org/entry/67")
         entry = Entry(context)
         (headers, body) = entry.put(body="<entry></entry>")
         self.assertEqual(200, headers.status)
@@ -20,7 +21,7 @@ class Test(unittest.TestCase):
         self.assertEqual(0, len(body))
 
     def test_delete(self):
-        context = Context(http = MockHttp(), entry = "http://example.org/entry/67")
+        context = Context(http = MockHttp(HTTP_SRC_DIR), entry = "http://example.org/entry/67")
         entry = Entry(context)
         (headers, body) = entry.delete()
         self.assertEqual(200, headers.status)
@@ -28,7 +29,7 @@ class Test(unittest.TestCase):
         self.assertEqual(0, len(body))
 
     def test_get_media(self):
-        context = Context(http = MockHttp(), entry = "http://example.org/images/77")
+        context = Context(http = MockHttp(HTTP_SRC_DIR), entry = "http://example.org/images/77")
         entry = Entry(context)
         (headers, body) = entry.get()
         self.assertEqual(200, headers.status)
@@ -39,7 +40,7 @@ class Test(unittest.TestCase):
         self.assertEqual(7483, len(body))
 
     def test_put_media(self):
-        context = Context(http = MockHttp(), entry = "http://example.org/images/77")
+        context = Context(http = MockHttp(HTTP_SRC_DIR), entry = "http://example.org/images/77")
         entry = Entry(context)
         (headers, body) = entry.get()
         self.assertEqual(200, headers.status)

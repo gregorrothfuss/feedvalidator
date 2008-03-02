@@ -10,7 +10,8 @@ class MockHttp:
     A mock for httplib2.Http that takes its
     response headers and bodies from files on disk
     """
-    def __init__(self, cache=None, timeout=None):
+    def __init__(self, directory):
+        self.directory = directory
         self.hit_counter = {}
 
     def request(self, uri, method="GET", body=None, headers=None, redirections=5):
@@ -18,7 +19,7 @@ class MockHttp:
         counter += 1
         self.hit_counter[method+uri] = counter
         path = urlparse.urlparse(uri)[2]
-        fname = os.path.join(HTTP_SRC_DIR, method, path.strip("/") + ".file")
+        fname = os.path.join(self.directory, method, path.strip("/") + ".file")
         fname_next = fname + "." + str(counter)
         if os.path.exists(fname_next):
             fname = fname_next
