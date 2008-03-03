@@ -151,7 +151,7 @@ class Recorder:
   """
   transcript = [] # a list of (MSG_TYPE, message, details)
   tests = []
-  html = True
+  html = False
   verbosity = 0
   has_errors = False
   has_warnings = False
@@ -241,9 +241,9 @@ class Recorder:
 
   def _totext(self):
     resp = []
-    resp.extend(["  %s:%s %s\n" % (code, msg, detail) for (code, msg, detail) in self.transcript])
-    resp.append("\n")
-    return "".join(resp)
+    for transcript in self.tests:
+      resp.extend([u"%s:%s" % (code, msg) for (code, msg, detail) in transcript])
+    return (u"\n".join(resp)).encode("utf-8")
 
   def _validate(self, headers, body):
     if headers.status in [200, 201]:
@@ -640,6 +640,8 @@ def main(options, cmd_line_args):
         print >>sys.stderr, "Running: ",
       test = TestIntrospection(target_uri, http)
       test.run()
+    if not options.quiet:
+      print >>sys.stderr, "\n\n",      
     
     outfile = sys.stdout
     if options.output:
