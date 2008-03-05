@@ -134,15 +134,49 @@ class MemoryCache:
       del self.mem[key]
 
 
-REPRESENTATION = "Representation"
-CREATE_FAILED = "Create Failed"
-REMOVE_FAILED = "Remove Failed"
-UPDATE_FAILED = "Update Failed"
-CRED_FILE_INVALID = "Credentials file"
-SERVICE_DOCUMENT = "Service Document"
-HTTP = "HTTP"
-EXCEPTION = "Exception"
-SPECIFICATION = "Specification"
+class Enum:
+  def __init__(self, **entries):
+    self.entries = entries
+    self.order = entries.keys()
+    self.__dict__.update([(name, i) for (i, name) in enumerate(entries.keys())])
+
+  def name(self, index):
+    return self.order[index]
+
+  def desc(self, index):
+    return self.entries[self.name(index)]
+
+
+# Make this an enum
+msg = Enum(
+  VALID_ATOM = "[RFC4287]",
+  ENTRIES_ORDERED_BY_ATOM_EDITED = "[RFC5023] Section 10",
+  CREATE_RETURNS_201 = "[RFC5023] Section 9.2",
+  CREATE_RETURNS_LOCATION = "[RFC5023] Section 9.2",
+  CREATE_CONTENT_LOCATION = "[RFC5023] Section 9.2",  
+  CREATE_RETURNS_ENTRY = "[RFC5023] Section 9.2",
+  CREATE_APPEAR_COLLECTION = "[RFC5023] Section 9.1",
+  PUT_STATUS_CODE = "[RFC2616] Section 9.6",
+  DELETE_STATUS_CODE = "[RFC2616] Section 9.7",
+  SLUG_HEADER = "[RFC5023] Section 9.7",
+  ENTRY_LINK_EDIT = "[RFC5023] Section 9.1",
+  MEDIA_ENTRY_LINK_EDIT = "[RFC5023] Section 9.6",
+  HTTP_ETAG = "[RFC2616] Section 13.3.4",
+  HTTP_LAST_MODIFIED = "[RFC2616] Section 13.3.4",  
+  HTTP_CONTENT_ENCODING = "[RFC2616] Section 14.11",  
+  WELL_FORMED_XML = "[W3C XML 1.0] Section 2.1",
+  INTERNATIONALIZATION = "[W3C XML 1.0] Section 2.2",  
+  CRED_FILE = "[AppClietTest]",
+  INFO = "Info",
+  SUCCESS = "",
+  REQUEST = "Request",
+  RESPONSE = "Response",
+  BEGIN_TEST = ""
+)
+
+class StopTest(Exception):
+  "Exception to raise if you want to stop the current test."
+  pass
 
 class Recorder:
   """
@@ -163,31 +197,31 @@ class Recorder:
     atompubbase.events.register_callback("POST_GET", self.content_validation_cb)
 
 
-  def error(self, msg, detail):
+  def error(self, message, detail):
     self.has_errors = True
-    self.transcript.append(("Error", msg, detail))
+    self.transcript.append(("Error", message, detail))
 
-  def warning(self, msg, detail):
+  def warning(self, message, detail):
     self.has_warnings = True    
-    self.transcript.append(("Warning", msg, detail))
+    self.transcript.append(("Warning", message, detail))
 
   def info(self, detail):
-    self.transcript.append(("Info", "Info", detail))
+    self.transcript.append(("Info", msg.INFO, detail))
 
   def success(self, detail):
-    self.transcript.append(("Success", "", detail))
+    self.transcript.append(("Success", msg.SUCCESS, detail))
 
-  def log(self, msg, detail):
-    self.transcript.append(("Log", msg, detail))
+  def log(self, message, detail):
+    self.transcript.append(("Log", message, detail))
 
   def _end_test(self):
     if self.transcript:
       self.tests.append(self.transcript)
       self.transcript = []
 
-  def begin_test(self, msg, detail):
+  def begin_test(self, detail):
     self._end_test()
-    self.transcript.append(("Begin_Test", msg, detail))
+    self.transcript.append(("Begin_Test", msg.BEGIN_TEST, detail))
 
   def tostr(self):
     self._end_test()
@@ -230,19 +264,19 @@ class Recorder:
   </div>
   """ % (time.asctime())] 
     for transcript in self.tests:
-      (code, msg, detail) = transcript[0]
+      (code, message, detail) = transcript[0]
       transcript = transcript[1:]
-      resp.append(u"<h2>%s</h2><p>%s</p>\n" % (msg, detail))
+      resp.append(u"<h2>%s</h2><p>%s</p>\n" % tuple(detail.split(":")))
       resp.append(u"<ol>\n")
       resp.extend([u"  <li class='%s'><img src='validator/res/%s.gif'> %s <span class='%s'>%s</span></li>\n" %
-                   (code, code.lower(), (msg == 'Info') and ' ' or msg, code, detail) for (code, msg, detail) in transcript])
+                   (code, code.lower(), (message == msg.INFO) and ' ' or msg.desc(message), code, detail) for (code, message, detail) in transcript])
       resp.append(u"</ol>\n")
     return (u"".join(resp)).encode("utf-8")
 
   def _totext(self):
     resp = []
     for transcript in self.tests:
-      resp.extend([u"%s:%s" % (code, msg) for (code, msg, detail) in transcript])
+      resp.extend([u"%s:%s %s" % (code, msg.name(message), detail) for (code, message, detail) in transcript if code not in ["Log", "Info"]])
     return (u"\n".join(resp)).encode("utf-8")
 
   def _validate(self, headers, body):
@@ -257,11 +291,11 @@ class Recorder:
 
       errors = [event for event in events if isinstance(event, feedvalidator.logging.Error)]
       if errors:
-        self.error(REPRESENTATION, "\n".join(text_formatter(errors)))
+        self.error(msg.VALID_ATOM, "\n".join(text_formatter(errors)))
 
       warnings = [event for event in events if isinstance(event, feedvalidator.logging.Warning)]
       if warnings:
-        self.warning(REPRESENTATION, "\n".join(text_formatter(warnings)))
+        self.warning(msg.VALID_ATOM, "\n".join(text_formatter(warnings)))
 
       if self.verbosity > 2:
         infos = [event for event in events if isinstance(event, feedvalidator.logging.Info)]
@@ -279,17 +313,17 @@ class Recorder:
     For operations that should return 200, like get, put and delete.
     """
     if not headers.has_key('etag'):
-      self.warning(HTTP, "No ETag: header was sent with the response.")
+      self.warning(msg.HTTP_ETAG, "No ETag: header was sent with the response.")
       if not headers.has_key('last-modified'):
-        self.warning(HTTP, "No Last-Modified: header was sent with the response.")
+        self.warning(msg.HTTP_LAST_MODIFIED, "No Last-Modified: header was sent with the response.")
     if headers.get('content-length', 0) > 0 and not headers.has_key('-content-encoding'):
-      self.warning(HTTP, "No Content-Encoding: header was sent with the response indicating that a compressed entity body was not returned.")
+      self.warning(msg.HTTP_CONTENT_ENCODING, "No Content-Encoding: header was sent with the response indicating that a compressed entity body was not returned.")
 
   def log_request_response(self, headers, body, filters):
     if "PRE" in filters:
-      direction = "Request"
+      direction = msg.REQUEST
     else:
-      direction = "Response"
+      direction = msg.RESPONSE
     if headers:
       headers_str = u"\n".join(["%s: %s" % (k, v) for (k, v) in headers.iteritems()])
     else:
@@ -363,11 +397,13 @@ class Test:
             try:
                 self.description = str(test_member_function.__doc__)
                 self.context = method
-                begin_test(method.split("test", 1)[1].replace("_", " "), self.description)
+                begin_test(method.split("test", 1)[1].replace("_", " ") + ":" + self.description)
                 test_member_function()
+            except StopTest:
+                pass
             except ParseException, e:
                 recorder.log_request_response(e.headers, e.body, set(["POST"]))
-                error(REPRESENTATION, "Not well-formed XML")
+                error(msg.WELL_FORMED_XML, "Not well-formed XML")
             except Exception, e:
                 import traceback
                 info("Internal error occured while running tests: " + str(e) + traceback.format_exc())
@@ -380,16 +416,61 @@ def check_order_of_entries(entries, order):
     # Need code to extract text from an XHTML title
     title = Entry(context).etree().find(atompubbase.model.ATOM_TITLE)
     if None == title:
-      error(REPRESENTATION, "Failed to preserve title")
+      warning(msg.INTERNATIONALIZATION, "Failed to preserve full range of unicode characters in the title")
       failed = True
     else:
       found_i = int(title.text.split()[-1])
       if found_i != i:
-        error(SPECIFICATION, "Failed to preserve order of entries, was expecting %d, but found %d" % (i, found_i))
+        error(msg.ENTRIES_ORDERED_BY_ATOM_EDITED, "Failed to preserve order of entries, was expecting %d, but found %d" % (i, found_i))
         failed = True
   if not failed:
     success("Order of entries is correct")
-  
+
+def check_create_response(h, b):
+  if h.status != 201:
+    error(msg.CREATE_RETURNS_201, "Entry creation failed with status: %d %s" % (h.status, h.reason))
+    raise StopTest
+  if 'location' not in h:
+    error(msg.CREATE_RETURNS_LOCATION, "Location: not returned in response headers.")            
+  if 'content-location' not in h:
+    warning(msg.CREATE_CONTENT_LOCATION, "Content-Location: not returned in response headers.")
+  if len(b) == 0:
+    warning(msg.CREATE_RETURNS_ENTRY, "Atom Entry not returned on member creation.")
+
+def check_entry_slug(e, slug):
+    slugified = [link for link in e.findall("{%s}link" % atompubbase.model.ATOM)
+                   if ('rel' not in link.attrib or link.attrib['rel'] == "alternate") and slug in link.attrib['href']]
+    if not slugified:
+      warning(msg.SLUG_HEADER, "Slug was ignored")
+    else:
+      success("Slug was honored")
+
+def check_entry_links(e, ismedia):
+    editlink = [link for link in e.findall("{%s}link" % atompubbase.model.ATOM)
+                 if ("edit" == link.attrib.get('rel', None))]
+    if not editlink:
+      warning(msg.ENTRY_LINK_EDIT, "Member Entry did not contain an atom:link element with a relation of 'edit'")
+    else:
+      success("Member contained an 'edit' link")
+
+    if ismedia:
+        editmedialink = [link for link in e.findall("{%s}link" % atompubbase.model.ATOM)
+                       if ("edit-media" == link.attrib.get('rel', None))]
+        if not editmedialink:
+          warning(msg.MEDIA_ENTRY_LINK_EDIT, "Member Entry did not contain an atom:link element with a relation of 'edit-media'")
+        else:
+          success("Member contained an 'edit-media' link")
+          
+def check_update_response(h, b, desc):
+    if h.status not in [200, 204]:
+      error(msg.PUT_STATUS_CODE, "Failed to accept updated %s" % desc)
+    else:
+      success("Updated %s" % desc)
+
+def check_remove_response(h, b):
+    if h.status not in [200, 202, 204]:
+        error(msg.DELETE_STATUS_CODE, "Entry removal failed with status: %d %s" % (h.status, h.reason))
+        raise StopTest
 
 class EntryCollectionTests(Test):
     def __init__(self, collection):
@@ -405,8 +486,6 @@ class EntryCollectionTests(Test):
 
         # Add in a slug and category if allowed.
         slugs = []
-
-        
         for i in range(3):
           info("Create new entry #%d" % (i+1))
           slugs.append("".join([random.choice("abcdefghijkl") for x in range(10)]))
@@ -415,22 +494,15 @@ class EntryCollectionTests(Test):
             'slug': slugs[i]
             },
             body = body % (i+1, repr(time.time())))
-          if h.status != 201:
-            error(CREATE_FAILED, "Entry creation failed with status: %d %s" % (h.status, h.reason))
-            return
-          if 'location' not in h:
-            error(SPECIFICATION, "Location: not returned in response headers.")            
-          if 'content-location' not in h:
-            warning(SPECIFICATION, "Content-Location: not returned in response headers.")
-          if len(body) == 0:
-            warning(SPECIFICATION, "Atom Entry not returned on member creation.")
+          check_create_response(h, b)
           if i < 2:
             time.sleep(1.1)
+            
         info("Count the entries in the collection after adding three.")
         entries = list(self.collection.iter())
         num_entries_after = len(entries)
         if num_entries_after != num_entries + 3:
-          warning(CREATE_FAILED, "All three entries did not appear in the collection.")
+          warning(msg.CREATE_APPEAR_COLLECTION, "All three entries did not appear in the collection.")
           return
         else:
           success("Added three entries.")
@@ -442,33 +514,16 @@ class EntryCollectionTests(Test):
         entry = Entry(entries[1])
         e = entry.etree()
 
-        # Check the slug
-        slugified = [link for link in e.findall("{%s}link" % atompubbase.model.ATOM)
-                       if ('rel' not in link.attrib or link.attrib['rel'] == "alternate") and slugs[1] in link.attrib['href']]
-        if not slugified:
-          warning("SPECIFICATION", "Slug was ignored")
-        else:
-          success("Slug was honored")
-
-        # Check the edit link
-        editlink = [link for link in e.findall("{%s}link" % atompubbase.model.ATOM)
-                       if ("edit" == link.attrib.get('rel', None))]
-        if not editlink:
-          warning("SPECIFICATION", "Member Entry did not contain an atom:link element with a relation of 'edit'")
-        else:
-          success("Member contained an 'edit' link")
-
-          
+        # Check the slug and links
+        check_entry_slug(e, slugs[1])
+        check_entry_links(e, ismedia=False)
+        
         
         e.find(atompubbase.model.ATOM_TITLE).text = "Internationalization - 2"
         info("Update entry #2 and write back to the collection")
         h, b = entry.put(headers={'content-type': 'application/atom+xml'}, body = tostring(e))
-        if h.status != 200:
-          error(UPDATE_FAILED, "Failed to accept updated entry")
-        else:
-          success("Updated entry #2")
+        check_update_response(h, b, "Entry #2")
 
-        
         # Confirm new order
         check_order_of_entries(self.collection.iter(), [2,3,1])
 
@@ -476,9 +531,8 @@ class EntryCollectionTests(Test):
         for context in entries[0:3]:
           info("Remove entry")
           h, b = Entry(context).delete()
-          if h.status != 200:
-            error(REMOVE_FAILED, "Entry removal failed with status: %d %s" % (h.status, h.reason))
-            return
+          check_remove_response(h, b)
+
         success("Removed three entries.")
 
 
@@ -503,21 +557,13 @@ class MediaCollectionTests(Test):
           'slug': slug
           },
           body = body)
-        if h.status != 201:
-          error(CREATE_FAILED, "Entry creation failed with status: %d %s" % (h.status, h.reason))
-          return
-        if 'location' not in h:
-          error(SPECIFICATION, "Location: not returned in response headers.")            
-        if 'content-location' not in h:
-          warning(SPECIFICATION, "Content-Location: not returned in response headers.")
-        if len(body) == 0:
-          warning(SPECIFICATION, "Atom Entry not returned on member creation.")            
+        check_create_response(h, b)        
 
         info("Count the entries in the collection after adding three.")
         entries = list(self.collection.iter())
         num_entries_after = len(entries)
         if num_entries_after != num_entries + 1:
-          warning(CREATE_FAILED, "New media entry did not appear in the collection.")
+          warning(msg.CREATE_APPEAR_COLLECTION, "New media entry did not appear in the collection.")
           return
         else:
           success("Added Media Entry")
@@ -526,48 +572,18 @@ class MediaCollectionTests(Test):
         e = entry.etree()
 
         # Check the slug
-        slugified = [link for link in e.findall("{%s}link" % atompubbase.model.ATOM)
-                       if ('rel' not in link.attrib or link.attrib['rel'] == "alternate") and slug in link.attrib['href']]
-        if not slugified:
-          warning("SPECIFICATION", "Slug was ignored")
-        else:
-          success("Slug was honored")
-
-
-        # Check the edit link
-        editlink = [link for link in e.findall("{%s}link" % atompubbase.model.ATOM)
-                       if ("edit" == link.attrib.get('rel', None))]
-        if not editlink:
-          warning("SPECIFICATION", "Member Entry did not contain an atom:link element with a relation of 'edit'")
-        else:
-          success("Member contained an 'edit' link")
-          
-
-        # Check the edit-media link
-        editmedialink = [link for link in e.findall("{%s}link" % atompubbase.model.ATOM)
-                       if ("edit-media" == link.attrib.get('rel', None))]
-        if not editmedialink:
-          warning("SPECIFICATION", "Member Entry did not contain an atom:link element with a relation of 'edit-media'")
-        else:
-          success("Member contained an 'edit-media' link")
-          
-
+        check_entry_slug(e, slug)
+        check_entry_links(e, ismedia=True)
         
         e.find(atompubbase.model.ATOM_TITLE).text = "Success"
         info("Update Media Link Entry and write back to the collection")
         h, b = entry.put(headers={'content-type': 'application/atom+xml'}, body = tostring(e))
-        if h.status != 200:
-          error(UPDATE_FAILED, "Failed to accept updated entry")
-        else:
-          success("Updated Media Link Entry")
-
+        check_update_response(h, b, "Media Link Entry")
         
         # Remove Entry
         info("Remove entry")
         h, b = entry.delete()
-        if h.status != 200:
-          error(REMOVE_FAILED, "Entry removal failed with status: %d %s" % (h.status, h.reason))
-          return
+        check_remove_response(h, b)
         success("Removed Media Entry")
 
 
@@ -585,7 +601,7 @@ class TestIntrospection(Test):
         entry_collections = list(service.iter_match("application/atom+xml;type=entry"))
           
         if 0 == len(entry_collections):
-            warning(SERVICE_DOCUMENT, "Didn't find any entry collections to test")
+          info("Didn't find any Entry Collections to test")
         else:
           test = EntryCollectionTests(Collection(entry_collections[0]))
           test.run()
@@ -593,7 +609,7 @@ class TestIntrospection(Test):
         media_collections = list(service.iter_match("image/gif"))
           
         if 0 == len(media_collections):
-            warning(SERVICE_DOCUMENT, "Didn't find any media collections that would accept GIF images")
+            info("Didn't find any Media Collections that would accept GIF images")
         else:
           test = MediaCollectionTests(Collection(media_collections[0]))
           test.run()
@@ -618,11 +634,11 @@ def main(options, cmd_line_args):
         name, password, authtype = parts 
         authname, service = authtype.split()
         if authname != "ClientLogin":
-          error(CRED_FILE, "Unknown type of authentication: %s ['ClientLogin' is the only good value at this time.]" % cl)
+          error(msg.CRED_FILE, "Unknown type of authentication: %s ['ClientLogin' is the only good value at this time.]" % cl)
           return
         cl = ClientLogin(http, name, password, service)
       else:
-        error(CRED_FILE, "Wrong format for credentials file")
+        error(msg.CRED_FILE, "Wrong format for credentials file")
 
     if options.record:
       from atompubbase.mockhttp import MockRecorder
