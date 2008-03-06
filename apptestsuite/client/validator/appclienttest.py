@@ -513,6 +513,8 @@ class EntryCollectionTests(Test):
         # Retrieve an entry
         entry = Entry(entries[1])
         e = entry.etree()
+        if e == None:
+          raise StopTest
 
         # Check the slug and links
         check_entry_slug(e, slugs[1])
@@ -570,6 +572,8 @@ class MediaCollectionTests(Test):
 
         entry = Entry(entries[0])
         e = entry.etree()
+        if e == None:
+          raise StopTest
 
         # Check the slug
         check_entry_slug(e, slug)
