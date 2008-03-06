@@ -1,0 +1,8 @@
+status: 200
+content-length: 0
+vary: Accept-Encoding,User-Agent
+server: Apache
+connection: close
+date: Mon, 03 Mar 2008 03:43:32 GMT
+content-type: text/plain
+
