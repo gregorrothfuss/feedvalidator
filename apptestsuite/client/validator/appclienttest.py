@@ -258,6 +258,8 @@ class Recorder:
     <link href="validator/res/base.css" type="text/css" rel="stylesheet">
     <script type="text/javascript" src="validator/res/jquery-1.2.3.js"></script>
     <script type="text/javascript" src="validator/res/report.js" ></script>
+    <link href="validator/res/prettify.css" type="text/css" rel="stylesheet" />
+    <script type="text/javascript" src="validator/res/prettify.js"></script>
     <title>AppClientTest - Results</title>
   </head>
 <body>
@@ -383,7 +385,7 @@ class Recorder:
       if self.html and need_escape:
         body = escape(body)
       if self.html:
-        log = u"<pre><code>\n" + escape(headers_str) + "\n\n" + body + u"</code></pre>"
+        log = u"<pre><code>\n" + escape(headers_str) + "\n\n\n</code></pre>\n<pre><code class='prettyprint'>" + body + u"</code></pre>"
       else:
         log = headers_str + "\n\n" + body
       self.log(direction, log)

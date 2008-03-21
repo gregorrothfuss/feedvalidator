@@ -5,7 +5,9 @@ $(document).ready(function() {
       $(this).siblings("span.Log").show("slow").end().text("Hide");
     } else {
       $(this).siblings("span.Log").hide("slow").end().text("Show");
+ 
     }
   });
+  prettyPrint();
 });
 
