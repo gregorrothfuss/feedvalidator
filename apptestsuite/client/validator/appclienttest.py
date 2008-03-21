@@ -337,6 +337,9 @@ class Recorder:
     """
     For operations that should return 200, like get, put and delete.
     """
+    if headers.status != 200:
+      error(msg.GET_STATUS_CODE, "Could not successfully retrieve the document. Got a status code of: %d" % headers.status)
+      raise StopTest
     if not headers.has_key('etag'):
       self.warning(msg.HTTP_ETAG, "No ETag: header was sent with the response.")
       if not headers.has_key('last-modified'):
@@ -542,10 +545,6 @@ class EntryCollectionTests(Test):
         body = get_test_data("i18n.atom").encode("utf-8")
 
         h, b = self.collection.get()
-        if h.status != 200:
-          error(msg.GET_STATUS_CODE, "Could not successfully retrieve the collection document. Got a status code of: %d" % h.status)
-          return
-    
 
         # Add in a slug and category if allowed.
         slugs = []
@@ -629,9 +628,6 @@ class MediaCollectionTests(Test):
         check_order_of_entries(entries, [entry_id])
 
         h, b = entry.get()
-        if h.status != 200:
-          error(msg.GET_STATUS_CODE, "Could not successfully retrieve the entry. Got a status code of: %d" % h.status)
-          return
 
 
         e = entry.etree()
@@ -665,10 +661,6 @@ class TestIntrospection(Test):
         """Find the first entry collection listed in an Introspection document and run the Entry collection tests against it."""
         context = Context(self.http, self.introspection_uri)
         service = Service(context)
-        h, b = service.get()
-        if h.status != 200:
-          error(msg.GET_STATUS_CODE, "Could not successfully retrieve the service document. Got a status code of: %d" % h.status)
-          return
         entry_collections = list(service.iter_match("application/atom+xml;type=entry"))
           
         if 0 == len(entry_collections):
