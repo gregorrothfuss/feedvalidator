@@ -628,7 +628,12 @@ class MediaCollectionTests(Test):
 
         check_order_of_entries(entries, [entry_id])
 
-        entry = Entry(self.collection.iter().next())
+        h, b = entry.get()
+        if h.status != 200:
+          error(msg.GET_STATUS_CODE, "Could not successfully retrieve the entry. Got a status code of: %d" % h.status)
+          return
+
+
         e = entry.etree()
         if e == None:
           raise StopTest
