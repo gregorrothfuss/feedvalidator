@@ -29,6 +29,7 @@ import random
 import base64
 import urllib
 import re
+import copy
 
 # By default we'll check the bitworking collection 
 INTROSPECTION_URI = "http://bitworking.org/projects/apptestsite/app.cgi/service/;service_document"
@@ -432,20 +433,23 @@ class Test:
                 info("Internal error occured while running tests: " + str(e) + traceback.format_exc())
 
 
-def check_order_of_entries(entries, order):       
+def check_order_of_entries(entries, order):
   info("Check order of entries in the collection document")
   failed = False
-  for context, i in zip(entries, order):
-    # Need code to extract text from an XHTML title
-    title = Entry(context).etree().find(atompubbase.model.ATOM_TITLE)
-    if None == title:
-      warning(msg.INTERNATIONALIZATION, "Failed to preserve full range of unicode characters in the title")
-      failed = True
-    else:
-      found_i = int(title.text.split()[-1])
-      if found_i != i:
-        error(msg.ENTRIES_ORDERED_BY_ATOM_EDITED, "Failed to preserve order of entries, was expecting %d, but found %d" % (i, found_i))
+  for e in entries:
+    idelement = e.find("{%s}id" % atompubbase.model.ATOM)
+    if None != idelement and idelement.text in order:
+      if order[0] != idelement.text:
+        error(msg.ENTRIES_ORDERED_BY_ATOM_EDITED, "Failed to preserve order of entries, was expecting %s, but found %s" % (order[0], idelement.text))
         failed = True
+        break
+      else:
+        order = order[1:]
+    if len(order) == 0:
+      break
+  if len(order) and not failed:
+    warning(msg.CREATE_APPEAR_COLLECTION, "All entries did not appear in the collection. The following ids never appeared: %s" % str(order))
+    failed = True
   if not failed:
     success("Order of entries is correct")
 
@@ -454,7 +458,8 @@ def check_create_response(h, b):
     error(msg.CREATE_RETURNS_201, "Entry creation failed with status: %d %s" % (h.status, h.reason))
     raise StopTest
   if 'location' not in h:
-    error(msg.CREATE_RETURNS_LOCATION, "Location: not returned in response headers.")            
+    error(msg.CREATE_RETURNS_LOCATION, "Location: not returned in response headers.")
+    raise StopTest    
   if 'content-location' not in h:
     warning(msg.CREATE_CONTENT_LOCATION, "Content-Location: not returned in response headers.")
   if len(b) == 0:
@@ -495,6 +500,35 @@ def check_remove_response(h, b):
         error(msg.DELETE_STATUS_CODE, "Entry removal failed with status: %d %s" % (h.status, h.reason))
         raise StopTest
 
+def get_entry_id(context, h, b):
+  entry_id = None
+  if 'location' in h:
+    entry_context = copy.copy(context)
+    entry_context.entry = h['location']
+    e = Entry(entry_context)
+    idelement = e.etree().find("{%s}id" % atompubbase.model.ATOM)
+    if None != idelement:
+      entry_id = idelement.text
+  if None == entry_id:
+    info("Atom entry did not contain the required atom:id, can't continue with test.")
+    raise StopTest
+  return (entry_id, e)
+
+def remove_entries_by_id(entries, ids):
+  num_entries = len(ids)
+  for econtext in entries:
+    e = Entry(econtext)
+    idelement = e.etree().find("{%s}id" % atompubbase.model.ATOM)
+    if None != idelement and idelement.text in ids:
+      info("Remove entry")
+      h, b = e.delete()
+      check_remove_response(h, b)
+      num_entries -= 1
+    if num_entries == 0:
+      break
+  if num_entries == 0:
+    success("Removed all entries that we're previously added.")
+  
 class EntryCollectionTests(Test):
     def __init__(self, collection):
         Test.__init__(self)
@@ -503,12 +537,13 @@ class EntryCollectionTests(Test):
     def testBasic_Entry_Manipulation(self):
         """Add and remove three entries to the collection"""
         info("Service Document: %s" % self.collection.context().collection)
-        info("Count the entries in the collection")
-        num_entries = len(list(self.collection.iter()))
+
         body = get_test_data("i18n.atom").encode("utf-8")
 
         # Add in a slug and category if allowed.
         slugs = []
+        ids = []
+        added_entries = {}
         for i in range(3):
           info("Create new entry #%d" % (i+1))
           slugs.append("".join([random.choice("abcdefghijkl") for x in range(10)]))
@@ -518,23 +553,23 @@ class EntryCollectionTests(Test):
             },
             body = body % (i+1, repr(time.time())))
           check_create_response(h, b)
+          (entry_id, entry) = get_entry_id(self.collection.context(), h, b)
+          ids.append(entry_id)
+          added_entries[entry_id] = entry
           if i < 2:
             time.sleep(1.1)
-            
-        info("Count the entries in the collection after adding three.")
-        entries = list(self.collection.iter())
-        num_entries_after = len(entries)
-        if num_entries_after != num_entries + 3:
-          warning(msg.CREATE_APPEAR_COLLECTION, "All three entries did not appear in the collection.")
-          return
-        else:
-          success("Added three entries.")
 
-        # Confirm the order
-        check_order_of_entries(entries, [3,2,1])
+
+        entries = list(self.collection.iter_entry())
+
+        # Entries should appear in reverse chronological order of their creation.
+        ids.reverse()
         
-        # Retrieve an entry
-        entry = Entry(entries[1])
+        # Confirm the order
+        check_order_of_entries(entries, ids)
+        
+        # Retrieve the second entry added
+        entry = added_entries[ids[1]]
         e = entry.etree()
         if e == None:
           raise StopTest
@@ -550,15 +585,14 @@ class EntryCollectionTests(Test):
         check_update_response(h, b, "Entry #2")
 
         # Confirm new order
-        check_order_of_entries(self.collection.iter(), [2,3,1])
+        ids[0:0] = ids[1:2]
+        del ids[2]        
+        check_order_of_entries(self.collection.iter_entry(), ids)
 
-        # Remove Entries
-        for context in entries[0:3]:
-          info("Remove entry")
-          h, b = Entry(context).delete()
-          check_remove_response(h, b)
+        # Remove Entries by atom:id
+        remove_entries_by_id(self.collection.iter(), ids)
+        
 
-        success("Removed three entries.")
 
 
 
@@ -570,8 +604,6 @@ class MediaCollectionTests(Test):
     def testBasic_Media_Manipulation(self):
         """Add and remove an image in the collection"""
         info("Service Document: %s" % self.collection.context().collection)
-        info("Count the entries in the collection")
-        num_entries = len(list(self.collection.iter()))
         
         body = get_test_data_raw("success.gif")
         
@@ -582,18 +614,14 @@ class MediaCollectionTests(Test):
           'slug': slug
           },
           body = body)
-        check_create_response(h, b)        
+        check_create_response(h, b)
+        entry_id, entry = get_entry_id(self.collection.context(), h, b)
 
-        info("Count the entries in the collection after adding three.")
-        entries = list(self.collection.iter())
-        num_entries_after = len(entries)
-        if num_entries_after != num_entries + 1:
-          warning(msg.CREATE_APPEAR_COLLECTION, "New media entry did not appear in the collection.")
-          return
-        else:
-          success("Added Media Entry")
+        entries = list(self.collection.iter_entry())
 
-        entry = Entry(entries[0])
+        check_order_of_entries(entries, [entry_id])
+
+        entry = Entry(self.collection.iter().next())
         e = entry.etree()
         if e == None:
           raise StopTest
