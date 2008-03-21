@@ -7,9 +7,9 @@ import os
 import sys
 import httplib2
 try:
-      from xml.etree.ElementTree import fromstring, tostring
+      from xml.etree.ElementTree import fromstring, tostring, SubElement
 except:
-      from elementtree.ElementTree import fromstring, tostring
+      from elementtree.ElementTree import fromstring, tostring, SubElement
 
 import atompubbase
 from atompubbase.model import Entry, Collection, Service, Context, init_event_handlers, ParseException
@@ -638,7 +638,10 @@ class MediaCollectionTests(Test):
         check_entry_slug(e, slug)
         check_entry_links(e, ismedia=True)
         
-        e.find(atompubbase.model.ATOM_TITLE).text = "Success"
+        title = e.find(atompubbase.model.ATOM_TITLE)
+        if None == title:
+          title = SubElement(e, atompubbase.model.ATOM_TITLE)
+        title.text = "Success"
         info("Update Media Link Entry and write back to the collection")
         h, b = entry.put(headers={'content-type': 'application/atom+xml'}, body = tostring(e))
         check_update_response(h, b, "Media Link Entry")
