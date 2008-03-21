@@ -24,7 +24,7 @@ class Test(unittest.TestCase):
         self.assertEqual(1, msg_count["Begin_Test"])
         self.assertEqual(0, msg_count.get("Warning", 0))
 
-    def testComplete(self):
+    def testNoLocation(self):
         """
         Test a complete path through the flow. The following errors
         have been injected into a good run:
@@ -36,21 +36,11 @@ class Test(unittest.TestCase):
         The PUT to update the entry fails with a 400.
         The XML returned from creating a media entry is not well-formed.
         """
-        output = Popen(["python", "./validator/appclienttest.py", "--quiet", "--playback=./validator/rawtestdata/complete/"], stdout=PIPE).communicate()[0]
+        output = Popen(["python", "./validator/appclienttest.py", "--quiet", "--playback=./validator/rawtestdata/nolocation/", "http://example.org/service"], stdout=PIPE).communicate()[0]
         parsed, msg_count = self._parse(output)
         self.assertTrue(("Warning", msg.HTTP_ETAG) in parsed)
         self.assertTrue(("Warning", msg.HTTP_LAST_MODIFIED) in parsed)        
         self.assertTrue(("Error", msg.CREATE_RETURNS_LOCATION) in parsed)        
-        self.assertTrue(("Warning", msg.CREATE_CONTENT_LOCATION) in parsed)        
-        self.assertTrue(("Warning", msg.SLUG_HEADER) in parsed)        
-        self.assertTrue(("Warning", msg.ENTRY_LINK_EDIT) in parsed)        
-        self.assertTrue(("Error", msg.PUT_STATUS_CODE) in parsed)        
-        self.assertTrue(("Error", msg.WELL_FORMED_XML) in parsed)
-
-
-
-
-        
 
 
 if __name__ == "__main__":
