@@ -28,6 +28,7 @@ import xml.dom.minidom
 import random
 import base64
 import urllib
+import re
 
 # By default we'll check the bitworking collection 
 INTROSPECTION_URI = "http://bitworking.org/projects/apptestsite/app.cgi/service/;service_document"
@@ -164,8 +165,8 @@ msg = Enum(
   HTTP_ETAG = "[RFC2616] Section 13.3.4",
   HTTP_LAST_MODIFIED = "[RFC2616] Section 13.3.4",  
   HTTP_CONTENT_ENCODING = "[RFC2616] Section 14.11",  
-  WELL_FORMED_XML = "[W3C XML 1.0] Section 2.1",
-  INTERNATIONALIZATION = "[W3C XML 1.0] Section 2.2",  
+  WELL_FORMED_XML = "[W3C XML 1.0] Section 2.1 sec-well-formed",
+  INTERNATIONALIZATION = "[W3C XML 1.0] Section 2.1 charsets",  
   CRED_FILE = "[AppClietTest]",
   INFO = "Info",
   SUCCESS = "",
@@ -177,6 +178,25 @@ msg = Enum(
 class StopTest(Exception):
   "Exception to raise if you want to stop the current test."
   pass
+
+RFC = re.compile("\[RFC(?P<number>\d{4})\] Section (?P<section>\S+)$")
+RFC_URI = "http://tools.ietf.org/html/rfc%(number)s#section-%(section)s"
+W3C = re.compile("\[W3C XML 1.0\] Section (\S+) (?P<section>\S+)$")
+W3C_URI = "http://www.w3.org/TR/REC-xml/#%(section)s"
+
+def expand_spec_reference(message):
+  html_message = ' '
+  if message != msg.INFO:
+    html_message = msg.desc(message)
+  match = RFC.search(html_message)
+  if match:
+    uri = RFC_URI % match.groupdict()
+    html_message = "<a href='%s'>%s</a>" % (uri, html_message)
+  match = W3C.search(html_message)
+  if match:
+    uri = W3C_URI % match.groupdict()
+    html_message = "<a href='%s'>%s</a>" % (uri, html_message)
+  return html_message  
 
 class Recorder:
   """
@@ -268,8 +288,9 @@ class Recorder:
       transcript = transcript[1:]
       resp.append(u"<h2>%s</h2><p>%s</p>\n" % tuple(detail.split(":")))
       resp.append(u"<ol>\n")
+      # convert msg.desc(message) into a link if possible
       resp.extend([u"  <li class='%s'><img src='validator/res/%s.gif'> %s <span class='%s'>%s</span></li>\n" %
-                   (code, code.lower(), (message == msg.INFO) and ' ' or msg.desc(message), code, detail) for (code, message, detail) in transcript])
+                   (code, code.lower(), expand_spec_reference(message), code, detail) for (code, message, detail) in transcript])
       resp.append(u"</ol>\n")
     return (u"".join(resp)).encode("utf-8")
 
