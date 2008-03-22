@@ -11,6 +11,7 @@ class Test(unittest.TestCase):
         (headers, body) = entry.get()
         self.assertEqual(200, headers.status)
         self.assertFalse(entry.has_media())
+        self.assertEqual(entry.uri(), "http://example.org/entry/67")
 
     def test_put(self):
         context = Context(http = MockHttp(HTTP_SRC_DIR), entry = "http://example.org/entry/67")

@@ -12,6 +12,7 @@ class Test(unittest.TestCase):
         s = Service(c)
         headers, body = s.get()
         self.assertEqual(headers["status"], "200")
+        self.assertEqual(s.uri(), "http://example.org/service.atomsvc")
 
     def test_iter(self):
         s = Service(Context(http = MockHttp(HTTP_SRC_DIR), service = "http://example.org/service.atomsvc"))

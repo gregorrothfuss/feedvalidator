@@ -10,6 +10,7 @@ class Test(unittest.TestCase):
         collection = Collection(context)
         entry_contexts = list(collection.iter())
         self.assertEqual(4, len(entry_contexts))
+        self.assertEqual(collection.uri(), "http://example.org/entry/index.atom")
     
         # Now test rewinding, starting the iteration over again.
         context = collection.iter().next()

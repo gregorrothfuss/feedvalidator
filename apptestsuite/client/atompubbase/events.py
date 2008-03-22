@@ -124,6 +124,10 @@ def _wrap(method, methodname):
     def wrapped(self, headers=None, body=None):
         if headers == None:
           headers = {}
+        try:
+          headers["-request-uri"] = self.uri()
+        except AttributeError:
+          pass
         events.trigger("PRE", methodname, self, headers, body)
         (headers, body) = method(self, headers, body)
         events.trigger("POST", methodname, self, headers, body)

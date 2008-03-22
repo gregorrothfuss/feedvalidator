@@ -204,6 +204,9 @@ class Service(object):
         """
         return self.context
 
+    def uri(self):
+        return self.context.service
+
     def get(self, headers=None, body=None):
         """
         Retrieve the current Service Document from the server.
@@ -273,6 +276,9 @@ class Collection(object):
         The Context associated with this Collection.
         """
         return self._context
+
+    def uri(self):
+        return self._context.collection
 
     def etree(self):
         """
@@ -418,6 +424,10 @@ class Entry(object):
 
     def context(self):
         return self._context
+
+    def uri(self):
+        return self._context.entry
+
 
     def get(self, headers=None, body=None):
         """
