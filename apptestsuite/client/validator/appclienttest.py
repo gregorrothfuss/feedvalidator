@@ -122,6 +122,16 @@ def get_test_data_raw(filename):
   return file(os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                    filename), "r").read()
 
+def method_from_filters(filters):
+  method = "GET"
+  if "CREATE" in filters:
+    method = "POST"
+  elif "PUT" in filters:
+    method = "PUT"
+  elif "DELETE" in filters:
+    method = "DELETE"
+  return method
+
 class MemoryCache:
   mem = {}
 
@@ -348,14 +358,17 @@ class Recorder:
       self.warning(msg.HTTP_CONTENT_ENCODING, "No Content-Encoding: header was sent with the response indicating that a compressed entity body was not returned.")
 
   def log_request_response(self, headers, body, filters):
+    request_line = u""
     if "PRE" in filters:
       direction = msg.REQUEST
+      if "-request-uri" in headers:
+        uri = headers["-request-uri"]
+        del headers["-request-uri"]
+        method = method_from_filters(filters)
+        request_line = method + u" " + uri
     else:
       direction = msg.RESPONSE
-    if headers:
-      headers_str = u"\n".join(["%s: %s" % (k, v) for (k, v) in headers.iteritems()])
-    else:
-      headers_str = u""
+    headers_str = request_line + "\n" + u"\n".join(["%s: %s" % (k, v) for (k, v) in headers.iteritems()])
     need_escape = True
     if body == None or len(body) == 0:
       body = u""
@@ -386,7 +399,7 @@ class Recorder:
       else:
         body = "Could not safely serialize the body"
 
-    if headers_str or body:
+    if headers_str or body or request_line:
       if self.html and need_escape:
         body = escape(body)
       if self.html:
