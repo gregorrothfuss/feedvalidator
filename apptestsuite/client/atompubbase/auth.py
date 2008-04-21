@@ -1,6 +1,22 @@
 from urllib import urlencode
 import atompubbase
 
+def apply_credentials_file(filename, http, error):
+    parts = file(filename, "r").read().splitlines()
+    if len(parts) == 2:
+      name, password = parts
+      http.add_credentials(name, password)
+    elif len(parts) == 3:
+      name, password, authtype = parts 
+      authname, service = authtype.split()
+      if authname != "ClientLogin":
+        error(msg.CRED_FILE, "Unknown type of authentication: %s ['ClientLogin' is the only good value at this time.]" % authname)
+        return
+      cl = ClientLogin(http, name, password, service)
+    else:
+      error(msg.CRED_FILE, "Wrong format for credentials file")
+
+
 class ClientLogin:
   """
   Perform ClientLogin up front, save the auth token, and then
