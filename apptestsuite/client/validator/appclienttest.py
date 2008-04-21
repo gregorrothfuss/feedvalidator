@@ -12,6 +12,7 @@ except:
       from elementtree.ElementTree import fromstring, tostring, SubElement
 
 import atompubbase
+import atompubbase.auth
 from atompubbase.model import Entry, Collection, Service, Context, init_event_handlers, ParseException
 import urlparse
 import cStringIO
@@ -30,7 +31,6 @@ import base64
 import urllib
 import re
 import copy
-from atompubbase.auth import ClientLogin
 
 # By default we'll check the bitworking collection 
 INTROSPECTION_URI = "http://bitworking.org/projects/apptestsite/app.cgi/service/;service_document"
@@ -578,7 +578,7 @@ class EntryCollectionTests(Test):
         
         e.find(atompubbase.model.ATOM_TITLE).text = "Internationalization - 2"
         info("Update entry #2 and write back to the collection")
-        h, b = entry.put(headers={'content-type': 'application/atom+xml'}, body = tostring(e))
+        h, b = entry.put()
         check_update_response(h, b, "Entry #2")
 
         # Confirm new order
@@ -620,7 +620,6 @@ class MediaCollectionTests(Test):
 
         h, b = entry.get()
 
-
         e = entry.etree()
         if e == None:
           raise StopTest
@@ -634,7 +633,7 @@ class MediaCollectionTests(Test):
           title = SubElement(e, atompubbase.model.ATOM_TITLE)
         title.text = "Success"
         info("Update Media Link Entry and write back to the collection")
-        h, b = entry.put(headers={'content-type': 'application/atom+xml'}, body = tostring(e))
+        h, b = entry.put()
         check_update_response(h, b, "Media Link Entry")
         
         # Remove Entry
@@ -683,19 +682,7 @@ def main(options, cmd_line_args):
     http.force_exception_to_status_code = False
 
     if options.credentials:
-      parts = file(options.credentials, "r").read().splitlines()
-      if len(parts) == 2:
-        name, password = parts
-        http.add_credentials(name, password)
-      elif len(parts) == 3:
-        name, password, authtype = parts 
-        authname, service = authtype.split()
-        if authname != "ClientLogin":
-          error(msg.CRED_FILE, "Unknown type of authentication: %s ['ClientLogin' is the only good value at this time.]" % cl)
-          return
-        cl = ClientLogin(http, name, password, service)
-      else:
-        error(msg.CRED_FILE, "Wrong format for credentials file")
+      atompubbase.auth.apply_credentials_file(options.credentials, http, error)
 
     if options.record:
       from atompubbase.mockhttp import MockRecorder

@@ -31,10 +31,6 @@ class Test(unittest.TestCase):
 
         The service document does not return Etag or Last-Modified headers.
         On Entry creation neither a Location or Content-Location: header are returned.
-        The Slug header is ignored.
-        The Entry does not contain an 'edit' link.
-        The PUT to update the entry fails with a 400.
-        The XML returned from creating a media entry is not well-formed.
         """
         output = Popen(["python", "./validator/appclienttest.py", "--quiet", "--playback=./validator/rawtestdata/nolocation/", "http://example.org/service"], stdout=PIPE).communicate()[0]
         parsed, msg_count = self._parse(output)
