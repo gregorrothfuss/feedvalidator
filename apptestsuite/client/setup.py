@@ -13,7 +13,6 @@ The atompubbase library is an Atom Publishing Protocol client library.
 
         """,
         packages=['atompubbase', 'atompubbase.mimeparse'],
-        scripts=['tools/apexer'],
         classifiers=[
         'Development Status :: 4 - Beta',
         'Environment :: Web Environment',

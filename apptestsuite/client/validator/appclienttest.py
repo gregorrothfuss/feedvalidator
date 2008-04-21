@@ -23,13 +23,14 @@ from feedvalidator import compatibility
 from mimeparse import mimeparse
 from xml.sax.saxutils import escape
 from feedvalidator.formatter.text_plain import Formatter as text_formatter
-from urllib import urlencode
+
 import xml.dom.minidom
 import random
 import base64
 import urllib
 import re
 import copy
+from atompubbase.auth import ClientLogin
 
 # By default we'll check the bitworking collection 
 INTROSPECTION_URI = "http://bitworking.org/projects/apptestsite/app.cgi/service/;service_document"
@@ -89,29 +90,6 @@ options, cmd_line_args = parser.parse_args()
 # Create an httplib2 instance for atompubbase that has a memory based cache.
 
 atompubbase.model.init_event_handlers()
-
-class ClientLogin:
-  """
-  Perform ClientLogin up front, save the auth token, and then
-  register for all the PRE events so that we can add the auth token
-  to all requests.
-  """
-
-  def __init__(self, http, name, password, service):
-    auth = dict(accountType="HOSTED_OR_GOOGLE", Email=name, Passwd=password, service=service,
-                source='AppClientTest-%s' % __version__.split()[1] )
-    resp, content = http.request("https://www.google.com/accounts/ClientLogin", method="POST", body=urlencode(auth), headers={'Content-Type': 'application/x-www-form-urlencoded'})
-    lines = content.split('\n')
-    d = dict([tuple(line.split("=", 1)) for line in lines if line])
-    if resp.status == 403:
-        self.Auth = ""
-    else:
-        self.Auth = d['Auth']
-    atompubbase.events.register_callback("PRE", self.pre_cb)
-
-  def pre_cb(self, headers, body, filters):
-    info("Added ClientLogin: %s" % self.Auth)
-    headers['authorization'] = 'GoogleLogin Auth=' + self.Auth 
 
 
 def get_test_data(filename):
