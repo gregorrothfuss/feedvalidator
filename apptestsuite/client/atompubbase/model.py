@@ -53,6 +53,7 @@ from mimeparse import mimeparse
 import urlparse
 import httplib2
 import copy
+
 try:
     from xml.etree.ElementTree import fromstring, tostring
 except:
@@ -69,6 +70,7 @@ LINK = "{%s}link" % ATOM
 ATOM_TITLE= "{%s}title" % ATOM
 APP_COLL = "{%s}collection" % APP
 APP_MEMBER_TYPE = "{%s}accept" % APP
+XHTML_DIV = "{%s}div" % XHTML
 
 class ParseException(Exception):
     def __init__(self, headers, body):
@@ -76,6 +78,19 @@ class ParseException(Exception):
         self.body = body
     def __str__(self):
         return "XML is non-well-formed"
+
+def get_child_title(node):
+    title = node.find(".//" + ATOM_TITLE)
+    if title == None:
+        return ""
+    title_type = title.get('type', 'text')
+    if title_type in ['text', 'html']:
+        return title.text
+    else:
+        div = title.find(".//" + XHTML_DIV)
+        div_text = div.text + "".join([c.text + c.tail for c in div.getchildren()])
+        return div_text
+
 
 def absolutize(baseuri, uri):
     """
@@ -188,6 +203,7 @@ class Context(object):
         """
         self._collection, self._entry = self._collection_stack.pop()
 
+    
 
 class Service(object):
     """
@@ -258,6 +274,21 @@ class Service(object):
         """
         return self.iter_match("*/*")
 
+    def iter_info(self):
+        """
+        Returns a generator that iterates over all
+        the collections in the service document.
+        Each yield tuple contains the collection
+        URI, the collection title and the workspace title
+        """
+        if not self.representation:
+            headers, body = self.get()
+        for workspace in self._etree.findall(".//{%s}workspace" % APP):
+            workspace_title = get_child_title(workspace)
+            for coll in workspace.findall(".//" + APP_COLL):
+                coll_title = get_child_title(coll)
+                coll_uri = absolutize(self.context.service, coll.get('href'))
+                yield (workspace_title, coll_title, coll_uri)
 
 
 class Collection(object):
