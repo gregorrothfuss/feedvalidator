@@ -31,6 +31,44 @@ ElementTree._namespace_map.update(my_namespaces)
 import re
 from urlparse import urljoin
 from xml.sax.saxutils import quoteattr, escape
+import time
+import calendar
+
+
+def get_element(etree, name):
+    value = ""
+    if '}' not in name:
+        name = ATOM(name)
+    l = etree.findall(name)
+    if l:
+        value = l[0].text
+    return value
+
+RFC3339 = re.compile("^(?P<year>\d\d\d\d)-(?P<month>\d\d)-(?P<day>\d\d)T(?P<hour>\d\d):(?P<minute>\d\d):(?P<second>\d\d)(\.\d*)?" +
+                           "(?P<timezone>Z|((?P<tzhour>[+-]\d\d):\d\d))$")    
+
+def get_date(etree, name):
+    """
+    Returns the Date Construct value as seconds from the epoch
+    in UTC. The 'name' should be the element name of an
+    RFC 4287 Date Contruct, such as ATOM('published'), ATOM('updated')
+    or APP('edited'). The parameter 'etree' in an elementtree
+    element. Note that you don't need to add the namespace
+    to elements in the ATOM namespace.
+    """
+    date = get_element(etree, name)
+    m = RFC3339.search(date)
+    if not m:
+        raise ValueError("Not a valid RFC 3339 format.")
+    d = m.groupdict()
+    ndate = [int(x) for x in [d['year'], d['month'], d['day'], d['hour'], d['minute'], d['second']]]
+    ndate.append(0) # weekday
+    ndate.append(1) # year day
+    if d['timezone'] != 'Z':
+        ndate[3] -= int(d['tzhour'])
+    ndate.append(0)
+    return calendar.timegm(tuple(ndate))
+        
 
 def serialize_nons(element, top):
     tag = element.tag.split("}", 1)[1]
