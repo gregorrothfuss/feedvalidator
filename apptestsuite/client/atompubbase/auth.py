@@ -1,5 +1,9 @@
 from urllib import urlencode
 import atompubbase
+import atompubbase.events
+from atompubbase.model import init_event_handlers
+
+init_event_handlers()
 
 def apply_credentials_file(filename, http, error):
     parts = file(filename, "r").read().splitlines()
