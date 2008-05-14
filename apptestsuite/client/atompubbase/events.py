@@ -134,16 +134,20 @@ def _wrap(method, methodname):
         return (headers, body)
     return wrapped
 
+_wrapped = set()
+
 def add_event_handlers(theclass):
     """
     Wrap each callable non-internal member function of the class
     with a wrapper function that calls into the eventing system.
     """
-    for methodname in dir(theclass):
-        method = getattr(theclass, methodname)
-        methodprefix = methodname.split("_")[0]
-        if methodprefix in WRAPPABLE and callable(method) and not methodname.startswith("_"):
-            setattr(theclass, methodname, _wrap(method, methodname))
+    if theclass not in _wrapped:
+        for methodname in dir(theclass):
+            method = getattr(theclass, methodname)
+            methodprefix = methodname.split("_")[0]
+            if methodprefix in WRAPPABLE and callable(method) and not methodname.startswith("_"):
+                setattr(theclass, methodname, _wrap(method, methodname))
+        _wrapped.add(theclass)
 
 def register_callback(filter, cb):
     """
